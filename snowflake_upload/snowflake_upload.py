@@ -62,49 +62,50 @@ tables_config = [
                 DEPARTMENT_ID INT
             )
         '''
-    }
-    #    {
-    #     'local_file': './imba_data/orders.csv',
-    #     's3_file': 'orders.csv',
-    #     'table_name': 'ORDERS',
-    #     'create_sql': '''
-    #         CREATE OR REPLACE TABLE ORDERS (
-    #             ORDER_ID INT,
-    #             USER_ID INT,
-    #             EVAL_SET INT,
-    #             ORDER_NUMBER INT,
-    #             ORDER_DOW INT,
-    #             ORDER_HOUR_OF_DAY INT,
-    #             DAY_SINCE_PRIOR_ORDER INT
-    #         )
-    #     '''
-    # },
-    #    {
-    #     'local_file': './imba_data/order_products__prior.csv',
-    #     's3_file': 'order_products__prior.csv',
-    #     'table_name': 'ORDER_PRODUCTS_PRIOR',
-    #     'create_sql': '''
-    #         CREATE OR REPLACE TABLE ORDER_PRODUCTS_PRIOR (
-    #             ORDER_ID INT,
-    #             PRODUCT_ID INT,
-    #             ADD_TO_CART_ORDER INT,
-    #             REORDERED INT
-    #         )
-    #     '''
-    # },
-    #    {
-    #     'local_file': './imba_data/order_products__train.csv',
-    #     's3_file': 'order_products__train.csv',
-    #     'table_name': 'ORDER_PRODUCTS_PRIOR',
-    #     'create_sql': '''
-    #         CREATE OR REPLACE TABLE ORDER_PRODUCTS_TRAIN (
-    #             ORDER_ID INT,
-    #             PRODUCT_ID INT,
-    #             ADD_TO_CART_ORDER INT,
-    #             REORDERED INT
-    #         )
-    #     '''
-    # }   
+    },
+       {
+        'local_file': './imba_data/orders.csv',
+        's3_file': 'orders.csv',
+        'table_name': 'ORDERS',
+        'create_sql': '''
+            CREATE OR REPLACE TABLE ORDERS (
+                ORDER_ID INT,
+                USER_ID INT,
+                EVAL_SET INT,
+                ORDER_NUMBER INT,
+                ORDER_DOW INT,
+                ORDER_HOUR_OF_DAY INT,
+                DAY_SINCE_PRIOR_ORDER INT
+            )
+        '''
+    },
+       {
+        'local_file': './imba_data/order_products__prior.csv',
+        's3_file': 'order_products__prior.csv',
+        'table_name': 'ORDER_PRODUCTS_PRIOR',
+        'create_sql': '''
+            CREATE OR REPLACE TABLE ORDER_PRODUCTS_PRIOR (
+                ORDER_ID INT,
+                PRODUCT_ID INT,
+                ADD_TO_CART_ORDER INT,
+                REORDERED INT
+            )
+        '''
+    },
+       {
+        'local_file': './imba_data/order_products__train.csv',
+        's3_file': 'order_products__train.csv',
+        'table_name': 'ORDER_PRODUCTS_PRIOR',
+        'create_sql': '''
+            CREATE OR REPLACE TABLE ORDER_PRODUCTS_TRAIN (
+                ORDER_ID INT,
+                PRODUCT_ID INT,
+                ADD_TO_CART_ORDER INT,
+                REORDERED INT
+            )
+        '''
+    }   
+    # Add more tables here as needed...
 ]
 
 # Step 1: Upload files to S3
@@ -136,10 +137,10 @@ except Exception as e:
 
 # Step 3: Create stage (only once)
 create_stage_sql = f'''
-    CREATE OR REPLACE STAGE {sf_config['stage_name']}
-    URL='s3://{aws_config['bucket']}/{aws_config['s3_prefix']}'
-    STORAGE_INTEGRATION = {sf_config['storage_integration_name']}
-    FILE_FORMAT = (TYPE = CSV FIELD_OPTIONALLY_ENCLOSED_BY='"' SKIP_HEADER=1)
+CREATE OR REPLACE STAGE {sf_config['stage_name']}
+URL='s3://{aws_config['bucket']}/{aws_config['s3_prefix']}'
+STORAGE_INTEGRATION = {sf_config['storage_integration_name']}
+FILE_FORMAT = (TYPE = CSV FIELD_OPTIONALLY_ENCLOSED_BY='"' SKIP_HEADER=1)
 '''
 cs.execute(create_stage_sql)
 
