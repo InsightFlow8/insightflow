@@ -1,0 +1,32 @@
+# 不上传环境变量文件
+.env
+
+# 不上传 AWS 或 Snowflake 凭证
+*.pem
+*.key
+*.json
+
+# 不上传临时数据/输出
+*.csv
+*.parquet
+*.log
+__pycache__/
+*.pyc
+
+# 本地上传记录或缓存
+.snowflake/
+.cache/
+temp/
+
+# Python virtual environments
+env/
+venv/
+**/env/
+**/venv/    
+**/snow_env/
+
+# 忽略测试专用notebook文件
+test.ipynb
+
+# 但保留以下特定文件（取消忽略）
+!imba_data/*.csv
