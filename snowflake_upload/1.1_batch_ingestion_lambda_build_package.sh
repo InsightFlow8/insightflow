@@ -9,7 +9,7 @@ mkdir 1.1_batch_ingestion_lambda_build
 pip install snowflake-connector-python boto3 python-dotenv -t 1.1_batch_ingestion_lambda_build
 
 # Step 3: Copy Lambda function code into build directory
-cp 1.1_batch_ingestion_lambda_function.py 1.1_batch_ingestion_lambda_build/1.1_batch_ingestion_lambda_function.py   # Need to rename to lambda_function.py when doing Lambda deployment on AWS
+cp 1.1_batch_ingestion_lambda_function.py 1.1_batch_ingestion_lambda_build/lambda_function.py   # Need to rename to lambda_function.py when doing Lambda deployment on AWS
 
 # Step 4: Zip the build directory into deployment package
 cd 1.1_batch_ingestion_lambda_build

@@ -3,6 +3,7 @@
 
 # 不上传 AWS 或 Snowflake 凭证
 *.pem
+*.ppk
 *.key
 *.json
 
@@ -27,11 +28,30 @@ venv/
 
 # 忽略测试专用notebook文件
 test.ipynb
+test.py
 
 # Lambda build artifacts
 1.1_batch_ingestion_lambda.zip
 /snowflake_upload/1.1_batch_ingestion_lambda_build/
 *.egg-info/
+
+
+# Terraform variables
+*.tfvars
+
+# Terraform state and cache
+.terraform/
+terraform.tfstate
+terraform.tfstate.backup
+.terraform.lock.hcl
+
+# macOS / VS Code 辅助项
+.DS_Store
+.vscode/
+
+# 示例环境变量文件（可公开上传）
+!.env.example
+
 
 # 但保留以下特定文件（取消忽略）
 !imba_data/*.csv

@@ -15,8 +15,8 @@ def lambda_handler(event=None, context=None):
     database = "IMBA_AARON_TEST"
     schema = "PUBLIC"
     bucket = "imba-test-aaron-landing"
-    prefix = "data"
-    log_prefix = "logs"
+    prefix = "data/batch"
+    log_prefix = "logs/batch"
 
     # Allow override of tables from event
     tables = event.get("tables") if event and "tables" in event else default_tables
@@ -83,4 +83,4 @@ def lambda_handler(event=None, context=None):
 
 # For local testing
 if __name__ == "__main__":
-    lambda_handler(event={"tables": ["AISLES", "DEPARTMENTS"]})
+    lambda_handler()
