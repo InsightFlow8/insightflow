@@ -13,7 +13,8 @@ cp 1.1_batch_ingestion_lambda_function.py 1.1_batch_ingestion_lambda_build/lambd
 
 # Step 4: Zip the build directory into deployment package
 cd 1.1_batch_ingestion_lambda_build
-zip -r ../1.1_batch_ingestion_lambda.zip .
+zip -r ../../terraform/assets/1.1_batch_ingestion_lambda.zip .
+cd .. 
 cd ..
 
-echo "✅ Lambda deployment package created: lambda_snowflake_ingestion.zip"
+echo "✅ Lambda deployment package created: terraform/assets/1.1_batch_ingestion_lambda.zip"

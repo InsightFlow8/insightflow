@@ -55,4 +55,3 @@ terraform.tfstate.backup
 
 # 但保留以下特定文件（取消忽略）
 !imba_data/*.csv
-!/snowflake_upload/1.1_batch_ingestion_lambda.zip
