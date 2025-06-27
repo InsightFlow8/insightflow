@@ -5,12 +5,12 @@
 # S3 Bucket for landing zone
 # -----------------------------
 resource "aws_s3_bucket" "landing_bucket" {
-  bucket = var.bucket_name
+  bucket        = var.bucket_name
   force_destroy = true
 }
 
 resource "aws_s3_bucket_public_access_block" "block_public" {
-  bucket = aws_s3_bucket.landing_bucket.id
+  bucket                  = aws_s3_bucket.landing_bucket.id
   block_public_acls       = true
   block_public_policy     = true
   ignore_public_acls      = true
@@ -73,22 +73,22 @@ resource "aws_iam_role_policy" "lambda_policy" {
 # Lambda Function
 # -----------------------------
 resource "aws_lambda_function" "batch_ingestion" {
-  function_name = var.lambda_function_name
-  role          = aws_iam_role.lambda_exec_role.arn
-  handler       = var.lambda_handler
-  runtime       = var.lambda_runtime
-  timeout       = 600
-  filename      = var.lambda_zip_path
+  function_name    = var.lambda_function_name
+  role             = aws_iam_role.lambda_exec_role.arn
+  handler          = var.lambda_handler
+  runtime          = var.lambda_runtime
+  timeout          = 600
+  filename         = var.lambda_zip_path
   source_code_hash = filebase64sha256(var.lambda_zip_path)
 
   environment {
     variables = {
-      BUCKET_NAME           = var.bucket_name
-      SNOWFLAKE_USER        = var.snowflake_user
-      SNOWFLAKE_PASSWORD    = var.snowflake_password
-      SNOWFLAKE_ACCOUNT     = var.snowflake_account
-      SNOWFLAKE_ROLE        = var.snowflake_role
-      SNOWFLAKE_WAREHOUSE   = var.snowflake_warehouse
+      BUCKET_NAME         = var.bucket_name
+      SNOWFLAKE_USER      = var.snowflake_user
+      SNOWFLAKE_PASSWORD  = var.snowflake_password
+      SNOWFLAKE_ACCOUNT   = var.snowflake_account
+      SNOWFLAKE_ROLE      = var.snowflake_role
+      SNOWFLAKE_WAREHOUSE = var.snowflake_warehouse
     }
   }
 }
