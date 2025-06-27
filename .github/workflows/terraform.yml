@@ -14,33 +14,7 @@ jobs:
   terraform:
     name: Apply Terraform
     runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v2
-        with:
-          terraform_version: 1.12.2  # 可根据你 WSL 中已安装版本修改
-
-      - name: Terraform Init
-        run: terraform init
-        working-directory: terraform
-
-      - name: Terraform Format Check
-        run: terraform fmt -check
-        working-directory: terraform
-
-      - name: Terraform Plan
-        run: terraform plan -input=false
-        working-directory: terraform
-
-      - name: Terraform Apply
-        run: terraform apply -auto-approve
-        working-directory: terraform
-
-        env:
+    env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           AWS_REGION: ap-southeast-2
@@ -65,3 +39,31 @@ jobs:
           TF_VAR_snowflake_account: ${{ secrets.SNOWFLAKE_ACCOUNT }}
           TF_VAR_snowflake_role: ${{ secrets.SNOWFLAKE_ROLE }}
           TF_VAR_snowflake_warehouse: ${{ secrets.SNOWFLAKE_WAREHOUSE }}
+
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: 1.12.2  # 可根据你 WSL 中已安装版本修改
+
+      - name: Terraform Init
+        run: terraform init
+        working-directory: terraform
+
+      - name: Terraform Format Check
+        run: terraform fmt -check
+        working-directory: terraform
+
+      - name: Terraform Plan
+        run: |
+          echo "Using TF_VAR_ variables from environment"
+          terraform plan -input=false
+        working-directory: terraform
+
+      - name: Terraform Apply
+        run: terraform apply -auto-approve
+        working-directory: terraform
