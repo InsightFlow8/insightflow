@@ -6,8 +6,8 @@ import snowflake.connector
 from datetime import datetime, timezone
 from dotenv import load_dotenv
 
-# Load credentials if running locally (Lambda will use IAM roles)
-load_dotenv()
+# Load credentials for local testing (ignored in Lambda runtime)
+# load_dotenv()
 
 def lambda_handler(event=None, context=None):
     # Configuration
@@ -17,16 +17,19 @@ def lambda_handler(event=None, context=None):
     bucket = "imba-test-aaron-landing"
     prefix = "data/batch"
     log_prefix = "logs/batch"
+    PAGE_SIZE = 1_000_000  # 分批处理的行数
 
     # Allow override of tables from event
     tables = event.get("tables") if event and "tables" in event else default_tables
 
-    # Timestamp for current execution (timezone-aware UTC)
+    # Timestamp for file naming
     now = datetime.now(timezone.utc)
     date_path = now.strftime("%Y/%m/%d")
     timestamp = now.strftime("%H%M")
-
     log_lines = []
+
+    # Initialize S3 client
+    s3 = boto3.client("s3")
 
     # Connect to Snowflake
     conn = snowflake.connector.connect(
@@ -44,24 +47,40 @@ def lambda_handler(event=None, context=None):
         for table_name in tables:
             try:
                 print(f"\n--- Processing table: {table_name} ---")
-                cs.execute(f"SELECT * FROM {database}.{schema}.{table_name}")
-                columns = [col[0] for col in cs.description]
-                rows = cs.fetchall()
+                offset = 0
+                part = 0
+                total_rows = 0
+                first_batch = True
 
-                # Write CSV to memory - local_file tmp cannot satisfy the project as it has a limit of 512MB file size
-                csv_buffer = io.StringIO()
-                writer = csv.writer(csv_buffer)
-                writer.writerow(columns)
-                writer.writerows(rows)
-                csv_data = csv_buffer.getvalue()
+                while True:
+                    query = f"SELECT * FROM {database}.{schema}.{table_name} LIMIT {PAGE_SIZE} OFFSET {offset}"
+                    cs.execute(query)
+                    columns = [col[0] for col in cs.description]
+                    rows = cs.fetchall()
 
-                # Upload to S3
-                s3_key = f"{prefix}/{date_path}/{table_name.lower()}/{table_name.lower()}_{timestamp}.csv"
-                s3 = boto3.client('s3')
-                s3.put_object(Bucket=bucket, Key=s3_key, Body=csv_data)
-                print(f"✅ Uploaded {table_name} to s3://{bucket}/{s3_key}")
+                    if not rows:
+                        break
 
-                log_lines.append(f"{now.isoformat()} - SUCCESS - {table_name} - {len(rows)} rows uploaded to {s3_key}")
+                    # Write to in-memory CSV
+                    csv_buffer = io.StringIO()
+                    writer = csv.writer(csv_buffer)
+                    if first_batch:
+                        writer.writerow(columns)
+                        first_batch = False
+                    writer.writerows(rows)
+                    csv_data = csv_buffer.getvalue()
+
+                    # Upload part file to S3
+                    s3_key = f"{prefix}/{date_path}/{table_name.lower()}/{table_name.lower()}_{timestamp}_part{part}.csv"
+                    s3.put_object(Bucket=bucket, Key=s3_key, Body=csv_data)
+                    print(f"✅ Uploaded {table_name} part {part} to s3://{bucket}/{s3_key}")
+                    log_lines.append(f"{now.isoformat()} - SUCCESS - {table_name} - part {part} - {len(rows)} rows uploaded to {s3_key}")
+
+                    total_rows += len(rows)
+                    offset += PAGE_SIZE
+                    part += 1
+
+                print(f"✅ {table_name} total: {total_rows} rows, {part} files")
 
             except Exception as table_error:
                 print(f"❌ Failed to process {table_name}: {table_error}")
@@ -72,7 +91,7 @@ def lambda_handler(event=None, context=None):
         conn.close()
         print("\n✅ All tables attempted.")
 
-    # Write log to S3
+    # Write execution log to S3
     try:
         log_data = "\n".join(log_lines)
         log_key = f"{log_prefix}/{date_path}/lambda_log_{timestamp}.txt"
@@ -81,6 +100,6 @@ def lambda_handler(event=None, context=None):
     except Exception as log_error:
         print(f"⚠️ Failed to write log: {log_error}")
 
-# For local testing
+# For local test
 if __name__ == "__main__":
     lambda_handler()
