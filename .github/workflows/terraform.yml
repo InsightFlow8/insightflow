@@ -8,6 +8,7 @@ on:
       - 'terraform/**'
       - '.github/workflows/**'
       - 'terraform/assets/**'
+      - 'snowflake_upload/1.1_batch_ingestion_lambda_function.py'
 
 permissions:
   contents: read

@@ -13,6 +13,8 @@
 *.log
 __pycache__/
 *.pyc
+*.jpg
+*.png
 
 # 本地上传记录或缓存
 .snowflake/
@@ -34,9 +36,8 @@ test.py
 
 /snowflake_upload/1.1_batch_ingestion_lambda_build/
 *.egg-info/
-
 # Only need to upload the zip file once
-/terraform/assets/*
+/terraform/assets/
 
 
 # Terraform variables
@@ -57,4 +58,4 @@ terraform.tfstate.backup
 
 
 # 但保留以下特定文件（取消忽略）
-!imba_data/*.csv
+# !imba_data/*.csv

@@ -11,7 +11,7 @@ load_dotenv()
 
 def lambda_handler(event=None, context=None):
     # Configuration
-    default_tables = ["AISLES", "DEPARTMENTS", "PRODUCTS"]
+    default_tables = ["AISLES", "DEPARTMENTS", "PRODUCTS", "ORDERS"]
     database = "IMBA_AARON_TEST"
     schema = "PUBLIC"
     bucket = "imba-test-aaron-landing"

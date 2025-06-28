@@ -71,7 +71,7 @@ tables_config = [
             CREATE OR REPLACE TABLE ORDERS (
                 ORDER_ID INT,
                 USER_ID INT,
-                EVAL_SET INT,
+                EVAL_SET STRING,
                 ORDER_NUMBER INT,
                 ORDER_DOW INT,
                 ORDER_HOUR_OF_DAY INT,
