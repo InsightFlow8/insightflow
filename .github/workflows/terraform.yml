@@ -31,7 +31,7 @@ jobs:
           TF_VAR_aws_region: ap-southeast-2
           TF_VAR_lambda_function_name: batch_snowflake_ingestion_1_1
           TF_VAR_lambda_handler: lambda_function.lambda_handler
-          TF_VAR_lambda_runtime: python3.10
+          TF_VAR_lambda_runtime: python3.13
           TF_VAR_lambda_zip_path: ./assets/1.1_batch_ingestion_lambda.zip  # 是否应该在这里修改.zip文件路径
           TF_VAR_bucket_name: imba-test-aaron-landing
           TF_VAR_eventbridge_schedule_expression: cron(0 14 * * ? *)  # UTC 14:00 = 0:00 Sydney
