@@ -79,6 +79,7 @@ resource "aws_lambda_function" "batch_ingestion" {
   runtime          = var.lambda_runtime
   timeout          = 600
   filename         = var.lambda_zip_path
+  memory_size      = 1024
   source_code_hash = filebase64sha256(var.lambda_zip_path)
 
   environment {
