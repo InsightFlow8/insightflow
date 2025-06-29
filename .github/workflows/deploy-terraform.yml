@@ -20,11 +20,11 @@ jobs:
 
       - name: 📑 Terraform Init  # 第三步：初始化 Terraform（下载 provider 插件等）
         run: terraform init
-        working-directory: infrastructure/terraform-s3  # ⚠️ 配置文件所在目录
+        working-directory: terraform-s3  # ⚠️ 配置文件所在目录
 
       - name: ✅ Terraform Validate  # 第四步：校验 Terraform 配置合法性
         run: terraform validate
-        working-directory: infrastructure/terraform-s3
+        working-directory: terraform-s3
 
       - name: 📤 Terraform Apply  # 第五步：执行部署
         env:
