@@ -7,7 +7,7 @@ provider "aws" {
 
 # 定义一个 S3 bucket 资源
 resource "aws_s3_bucket" "test_bucket" {
-  bucket = "imba-test-bucket-tobby"  # S3 bucket 名称（全局唯一）
+  bucket = "insightflow-test-bucket-tobby"  # S3 bucket 名称（全局唯一）
   acl    = "private"  # 访问权限，私有
 }
 
