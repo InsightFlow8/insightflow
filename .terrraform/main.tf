@@ -19,4 +19,4 @@ variable "AWS_ACCESS_KEY_ID" {
 # 定义变量：AWS_SECRET_ACCESS_KEY
 variable "AWS_SECRET_ACCESS_KEY" {
   description = "AWS_SECRET_ACCESS_KEY"
-}
+} 
