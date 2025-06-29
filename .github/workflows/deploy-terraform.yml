@@ -20,11 +20,11 @@ jobs:
 
       - name: 📑 Terraform Init  # 第三步：初始化 Terraform（下载 provider 插件等）
         run: terraform init
-        working-directory: terraform-s3  # ⚠️ 配置文件所在目录
+        working-directory: terraform-s3/main.tf  # ⚠️ 配置文件所在目录
 
       - name: ✅ Terraform Validate  # 第四步：校验 Terraform 配置合法性
         run: terraform validate
-        working-directory: terraform-s3
+        working-directory: terraform-s3/main.tf
 
       - name: 📤 Terraform Apply  # 第五步：执行部署
         env:
@@ -34,4 +34,4 @@ jobs:
           terraform apply -auto-approve \
             -var "aws_access_key=$AWS_ACCESS_KEY_ID" \
             -var "aws_secret_key=$AWS_SECRET_ACCESS_KEY"
-        working-directory: terraform-s3  # ⚠️ 配置文件所在目录
+        working-directory: terraform-s3/main.tf # ⚠️ 配置文件所在目录
