@@ -1,0 +1,38 @@
+name: Deploy Terraform S3 Bucket  # 工作流名称，会显示在 GitHub Actions 页面上
+
+# 触发方式：手动触发
+on:
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Deploy to AWS  # Job 名称
+    runs-on: ubuntu-latest  # 指定 runner 镜像
+
+    steps:
+      - name: 📥 Checkout repository  # 第一步：把仓库代码检出到 runner 本地
+        uses: actions/checkout@v4
+
+      - name: 📦 Setup Terraform  # 第二步：安装 Terraform 环境
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.8.5  # 指定 Terraform 版本
+
+      - name: 📑 Terraform Init  # 第三步：初始化 Terraform（下载 provider 插件等）
+        run: terraform init
+        working-directory: .terraform  # 指定 Terraform 配置文件所在目录
+
+      - name: ✅ Terraform Validate  # 第四步：检查 Terraform 配置文件语法和合法性
+        run: terraform validate
+        working-directory: .terraform
+
+      - name: 📤 Terraform Apply  # 第五步：执行部署（apply）
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}  # 从 GitHub Secrets 获取 AWS Access Key
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}  # 从 Secrets 获取 Secret Key
+        run: |
+          terraform apply -auto-approve \  # 执行 apply，自动确认
+            -var "aws_access_key=$AWS_ACCESS_KEY_ID" \  # 传入 AWS Access Key
+            -var "aws_secret_key=$AWS_SECRET_ACCESS_KEY"  # 传入 AWS Secret Key
+        working-directory: .terraform  # 指定 Terraform 配置文件目录
+
