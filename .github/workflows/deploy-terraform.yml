@@ -34,4 +34,4 @@ jobs:
           terraform apply -auto-approve \
             -var "aws_access_key=$AWS_ACCESS_KEY_ID" \
             -var "aws_secret_key=$AWS_SECRET_ACCESS_KEY"
-        working-directory: infrastructure/terraform-s3  # ⚠️ 配置文件所在目录
+        working-directory: terraform-s3  # ⚠️ 配置文件所在目录
