@@ -37,7 +37,7 @@ test.py
 /snowflake_upload/1.1_batch_ingestion_lambda_build/
 *.egg-info/
 # Only need to upload the zip file once
-/terraform/assets/*
+!/terraform/assets/*.zip
 
 
 # Terraform variables

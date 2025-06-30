@@ -24,7 +24,7 @@ def lambda_handler(event=None, context=None):
 
     # Timestamp for file naming
     now = datetime.now(timezone.utc)
-    date_path = now.strftime("%Y/%m/%d")
+    date_path = now.strftime("year=%Y/month=%m/day=%d")
     timestamp = now.strftime("%H%M")
     log_lines = []
 
@@ -64,14 +64,12 @@ def lambda_handler(event=None, context=None):
                     # Write to in-memory CSV
                     csv_buffer = io.StringIO()
                     writer = csv.writer(csv_buffer)
-                    if first_batch:
-                        writer.writerow(columns)
-                        first_batch = False
+                    writer.writerow(columns)
                     writer.writerows(rows)
                     csv_data = csv_buffer.getvalue()
 
                     # Upload part file to S3
-                    s3_key = f"{prefix}/{date_path}/{table_name.lower()}/{table_name.lower()}_{timestamp}_part{part}.csv"
+                    s3_key = f"{table_name.lower()}/data/batch/{date_path}/{table_name.lower()}_{timestamp}_part{part}.csv"
                     s3.put_object(Bucket=bucket, Key=s3_key, Body=csv_data)
                     print(f"✅ Uploaded {table_name} part {part} to s3://{bucket}/{s3_key}")
                     log_lines.append(f"{now.isoformat()} - SUCCESS - {table_name} - part {part} - {len(rows)} rows uploaded to {s3_key}")
