@@ -8,7 +8,7 @@ on:
       - 'terraform/**'
       - '.github/workflows/**'
       - 'terraform/assets/**'
-      # - 'snowflake_upload/1.1_batch_ingestion_lambda_function.py'
+      - 'glue_crawler_raw_ETL/2.1_glue_crawler_raw_scheduler.py'
 
 permissions:
   contents: read
@@ -29,6 +29,8 @@ jobs:
           SNOWFLAKE_WAREHOUSE: ${{ secrets.SNOWFLAKE_WAREHOUSE }}
 
           TF_VAR_aws_region: ap-southeast-2
+          
+          ### Batch ingestion configuration
           TF_VAR_lambda_function_name: batch_snowflake_ingestion_1_1
           TF_VAR_lambda_handler: lambda_function.lambda_handler
           TF_VAR_lambda_runtime: python3.13
@@ -36,6 +38,12 @@ jobs:
           TF_VAR_bucket_name: imba-test-aaron-landing
           TF_VAR_eventbridge_schedule_expression: cron(0 14 30 * ? *)  # UTC 14:00 = 0:00 Sydney
           TF_VAR_lambda_role_name: lambda_batch_ingestion_role
+          
+          ### Glue crawler raw configuration
+          TF_VAR_raw_crawler_names: crawler_raw_orders,crawler_raw_products,crawler_raw_departments,crawler_raw_aisles
+
+
+
 
           TF_VAR_snowflake_user: ${{ secrets.SNOWFLAKE_USER }}
           TF_VAR_snowflake_password: ${{ secrets.SNOWFLAKE_PASSWORD }}

@@ -6,3 +6,5 @@ provider "aws" {
 }
 
 
+# 获取当前 AWS 账号信息（account_id, user_id, arn）
+data "aws_caller_identity" "current" {}

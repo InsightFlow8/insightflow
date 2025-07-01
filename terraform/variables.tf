@@ -66,3 +66,7 @@ variable "snowflake_warehouse" {
   description = "Snowflake warehouse 名称"
   type        = string
 }
+
+variable "raw_crawler_names" {
+  default = "crawler_raw_orders,crawler_raw_products,crawler_raw_departments,crawler_raw_aisles"
+}
