@@ -9,9 +9,9 @@ resource "aws_iam_role" "glue_trigger_raw_lambda_role" {
   assume_role_policy = jsonencode({
     Version = "2012-10-17",
     Statement = [{
-      Effect = "Allow",
+      Effect    = "Allow",
       Principal = { Service = "lambda.amazonaws.com" },
-      Action = "sts:AssumeRole"
+      Action    = "sts:AssumeRole"
     }]
   })
 }
@@ -47,13 +47,13 @@ resource "aws_iam_role_policy" "glue_trigger_raw_lambda_policy" {
 }
 
 resource "aws_lambda_function" "glue_trigger_raw_lambda" {
-  function_name = "glue_crawler_trigger_raw_lambda"
-  handler       = "lambda_trigger_raw_crawlers.lambda_handler"
-  runtime       = "python3.13"
-  role          = aws_iam_role.glue_trigger_raw_lambda_role.arn
-  timeout       = 60
-  memory_size   = 128
-  filename      = "./assets/2.1_glue_crawler_raw_scheduler.zip"
+  function_name    = "glue_crawler_trigger_raw_lambda"
+  handler          = "lambda_trigger_raw_crawlers.lambda_handler"
+  runtime          = "python3.13"
+  role             = aws_iam_role.glue_trigger_raw_lambda_role.arn
+  timeout          = 60
+  memory_size      = 128
+  filename         = "./assets/2.1_glue_crawler_raw_scheduler.zip"
   source_code_hash = filebase64sha256("./assets/2.1_glue_crawler_raw_scheduler.zip")
 
   environment {
