@@ -60,10 +60,10 @@ resource "aws_glue_crawler" "raw_orders" {
   name          = "crawler_raw_orders"
   role          = aws_iam_role.glue_role.arn
   database_name = aws_glue_catalog_database.landing_db.name
-  table_prefix  = "raw_orders_"
+  table_prefix  = "raw_"
 
   s3_target {
-    path = "s3://imba-test-aaron-landing/orders/data/batch/"
+    path = "s3://${var.bucket_name}/${var.landing_prefix_base}/orders/"
   }
 
   configuration = jsonencode({
@@ -90,10 +90,10 @@ resource "aws_glue_crawler" "raw_products" {
   name          = "crawler_raw_products"
   role          = aws_iam_role.glue_role.arn
   database_name = aws_glue_catalog_database.landing_db.name
-  table_prefix  = "raw_products_"
+  table_prefix  = "raw_"
 
   s3_target {
-    path = "s3://imba-test-aaron-landing/products/data/batch/"
+    path = "s3://${var.bucket_name}/${var.landing_prefix_base}/products/"
   }
 
   configuration = jsonencode({
@@ -120,10 +120,10 @@ resource "aws_glue_crawler" "raw_departments" {
   name          = "crawler_raw_departments"
   role          = aws_iam_role.glue_role.arn
   database_name = aws_glue_catalog_database.landing_db.name
-  table_prefix  = "raw_departments_"
+  table_prefix  = "raw_"
 
   s3_target {
-    path = "s3://imba-test-aaron-landing/departments/data/batch/"
+    path = "s3://${var.bucket_name}/${var.landing_prefix_base}/departments/"
   }
 
   configuration = jsonencode({
@@ -150,10 +150,10 @@ resource "aws_glue_crawler" "raw_aisles" {
   name          = "crawler_raw_aisles"
   role          = aws_iam_role.glue_role.arn
   database_name = aws_glue_catalog_database.landing_db.name
-  table_prefix  = "raw_aisles_"
+  table_prefix  = "raw_"
 
   s3_target {
-    path = "s3://imba-test-aaron-landing/aisles/data/batch/"
+    path = "s3://${var.bucket_name}/${var.landing_prefix_base}/aisles/"
   }
 
   configuration = jsonencode({

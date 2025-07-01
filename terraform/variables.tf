@@ -70,3 +70,9 @@ variable "snowflake_warehouse" {
 variable "raw_crawler_names" {
   default = "crawler_raw_orders,crawler_raw_products,crawler_raw_departments,crawler_raw_aisles"
 }
+
+variable "landing_prefix_base" {
+  description = "基础数据前缀路径（用于 Glue Crawler）"
+  type        = string
+  default     = "data/batch"
+}

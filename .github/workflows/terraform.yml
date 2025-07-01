@@ -36,6 +36,7 @@ jobs:
           TF_VAR_lambda_runtime: python3.13
           TF_VAR_lambda_zip_path: ./assets/1.1_batch_ingestion_lambda.zip  # 是否应该在这里修改.zip文件路径
           TF_VAR_bucket_name: imba-test-aaron-landing
+          TF_VAR_landing_prefix_base: data/batch # 基础数据前缀路径（用于 Glue Crawler）
           TF_VAR_eventbridge_schedule_expression: cron(0 14 30 * ? *)  # UTC 14:00 = 0:00 Sydney
           TF_VAR_lambda_role_name: lambda_batch_ingestion_role
           

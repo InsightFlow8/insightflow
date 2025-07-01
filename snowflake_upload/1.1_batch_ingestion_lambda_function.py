@@ -6,32 +6,30 @@ import snowflake.connector
 from datetime import datetime, timezone
 from dotenv import load_dotenv
 
-# Load credentials for local testing (ignored in Lambda runtime)
-# load_dotenv()
+# load_dotenv()  # Local dev only, keep commented in Lambda
 
 def lambda_handler(event=None, context=None):
-    # Configuration
+    # Config
     default_tables = ["AISLES", "DEPARTMENTS", "PRODUCTS", "ORDERS"]
     database = "IMBA_AARON_TEST"
     schema = "PUBLIC"
     bucket = "imba-test-aaron-landing"
-    prefix = "data/batch"
+    base_prefix = "data/batch"
     log_prefix = "logs/batch"
-    PAGE_SIZE = 1_000_000  # 分批处理的行数
+    PAGE_SIZE = 1_000_000
 
-    # Allow override of tables from event
+    # Read override tables
     tables = event.get("tables") if event and "tables" in event else default_tables
 
-    # Timestamp for file naming
+    # Timestamp
     now = datetime.now(timezone.utc)
     date_path = now.strftime("year=%Y/month=%m/day=%d")
-    timestamp = now.strftime("%H%M")
+    hhmm_path = now.strftime("hhmm=%H%M")
     log_lines = []
 
-    # Initialize S3 client
     s3 = boto3.client("s3")
 
-    # Connect to Snowflake
+    # Snowflake connect
     conn = snowflake.connector.connect(
         user=os.getenv("SNOWFLAKE_USER"),
         password=os.getenv("SNOWFLAKE_PASSWORD"),
@@ -50,7 +48,6 @@ def lambda_handler(event=None, context=None):
                 offset = 0
                 part = 0
                 total_rows = 0
-                first_batch = True
 
                 while True:
                     query = f"SELECT * FROM {database}.{schema}.{table_name} LIMIT {PAGE_SIZE} OFFSET {offset}"
@@ -61,16 +58,16 @@ def lambda_handler(event=None, context=None):
                     if not rows:
                         break
 
-                    # Write to in-memory CSV
                     csv_buffer = io.StringIO()
                     writer = csv.writer(csv_buffer)
                     writer.writerow(columns)
                     writer.writerows(rows)
                     csv_data = csv_buffer.getvalue()
 
-                    # Upload part file to S3
-                    s3_key = f"{table_name.lower()}/data/batch/{date_path}/{table_name.lower()}_{timestamp}_part{part}.csv"
+                    # 🆕 Update s3_key with new structure
+                    s3_key = f"{base_prefix}/{table_name.lower()}/{date_path}/{hhmm_path}/{table_name.lower()}_part{part}.csv"
                     s3.put_object(Bucket=bucket, Key=s3_key, Body=csv_data)
+
                     print(f"✅ Uploaded {table_name} part {part} to s3://{bucket}/{s3_key}")
                     log_lines.append(f"{now.isoformat()} - SUCCESS - {table_name} - part {part} - {len(rows)} rows uploaded to {s3_key}")
 
@@ -89,10 +86,10 @@ def lambda_handler(event=None, context=None):
         conn.close()
         print("\n✅ All tables attempted.")
 
-    # Write execution log to S3
+    # 🆕 Write log to aligned path with date/hour
     try:
         log_data = "\n".join(log_lines)
-        log_key = f"{log_prefix}/{date_path}/lambda_log_{timestamp}.txt"
+        log_key = f"{log_prefix}/{date_path}/{hhmm_path}/lambda_log.txt"
         s3.put_object(Bucket=bucket, Key=log_key, Body=log_data)
         print(f"📝 Log written to s3://{bucket}/{log_key}")
     except Exception as log_error:
