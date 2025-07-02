@@ -1,7 +1,7 @@
 # =============================
 # Terraform for AWS Glue Crawlers (One Crawler per Table)
 # Updated to match new S3 layout:
-# s3://imba-test-aaron-landing/{table_name}/data/batch/year=YYYY/month=MM/day=DD/...csv
+# s3://imba-test-aaron-landing/data/batch/{table_name}/year=YYYY/month=MM/day=DD/hhmm=HHMM/{table}_part{x}.csv
 # =============================
 
 resource "aws_glue_catalog_database" "landing_db" {
@@ -60,7 +60,7 @@ resource "aws_glue_crawler" "raw_orders" {
   name          = "crawler_raw_orders"
   role          = aws_iam_role.glue_role.arn
   database_name = aws_glue_catalog_database.landing_db.name
-  table_prefix  = "raw_"
+  table_prefix  = "raw_batch_"
 
   s3_target {
     path = "s3://${var.bucket_name}/${var.landing_prefix_base}/orders/"
@@ -90,7 +90,7 @@ resource "aws_glue_crawler" "raw_products" {
   name          = "crawler_raw_products"
   role          = aws_iam_role.glue_role.arn
   database_name = aws_glue_catalog_database.landing_db.name
-  table_prefix  = "raw_"
+  table_prefix  = "raw_batch_"
 
   s3_target {
     path = "s3://${var.bucket_name}/${var.landing_prefix_base}/products/"
@@ -120,7 +120,7 @@ resource "aws_glue_crawler" "raw_departments" {
   name          = "crawler_raw_departments"
   role          = aws_iam_role.glue_role.arn
   database_name = aws_glue_catalog_database.landing_db.name
-  table_prefix  = "raw_"
+  table_prefix  = "raw_batch_"
 
   s3_target {
     path = "s3://${var.bucket_name}/${var.landing_prefix_base}/departments/"
@@ -150,7 +150,7 @@ resource "aws_glue_crawler" "raw_aisles" {
   name          = "crawler_raw_aisles"
   role          = aws_iam_role.glue_role.arn
   database_name = aws_glue_catalog_database.landing_db.name
-  table_prefix  = "raw_"
+  table_prefix  = "raw_batch_"
 
   s3_target {
     path = "s3://${var.bucket_name}/${var.landing_prefix_base}/aisles/"
