@@ -1,0 +1,4 @@
+bucket: your-bucket
+input_prefix: data_batches
+output_prefix: ingestion_output
+log_prefix: ingestion_log
