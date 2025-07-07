@@ -1,14 +1,15 @@
 name: Terraform CI/CD
 
 on:
-  workflow_dispatch:  # 允许手动触发工作流
+  workflow_dispatch:  # 手动触发
   push:
     branches: [main]
     paths:
       - 'terraform/**'
       - '.github/workflows/**'
       - 'terraform/assets/**'
-      - 'glue_crawler_raw_ETL/2.1_glue_crawler_raw_scheduler.py'
+      - 'glue_crawler_raw_ETL/**'
+      - 'glue_crawler_jobs/**'  # ✅ 支持 ETL 脚本变动触发
 
 permissions:
   contents: read
@@ -17,41 +18,67 @@ jobs:
   terraform:
     name: Apply Terraform
     runs-on: ubuntu-latest
+
     env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_REGION: ap-southeast-2
-          
-          SNOWFLAKE_USER: ${{ secrets.SNOWFLAKE_USER }}
-          SNOWFLAKE_PASSWORD: ${{ secrets.SNOWFLAKE_PASSWORD }}
-          SNOWFLAKE_ACCOUNT: ${{ secrets.SNOWFLAKE_ACCOUNT }}
-          SNOWFLAKE_ROLE: ${{ secrets.SNOWFLAKE_ROLE }}
-          SNOWFLAKE_WAREHOUSE: ${{ secrets.SNOWFLAKE_WAREHOUSE }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_REGION: ap-southeast-2
 
-          TF_VAR_aws_region: ap-southeast-2
-          
-          ### Batch ingestion configuration
-          TF_VAR_lambda_function_name: batch_snowflake_ingestion_1_1
-          TF_VAR_lambda_handler: lambda_function.lambda_handler
-          TF_VAR_lambda_runtime: python3.13
-          TF_VAR_lambda_zip_path: ./assets/1.1_batch_ingestion_lambda.zip  # 是否应该在这里修改.zip文件路径
-          TF_VAR_bucket_name: imba-test-aaron-landing
-          TF_VAR_landing_prefix_base: data/batch # 基础数据前缀路径（用于 Glue Crawler）
-          TF_VAR_eventbridge_schedule_expression: cron(0 14 30 * ? *)  # UTC 14:00 = 0:00 Sydney
-          TF_VAR_lambda_role_name: lambda_batch_ingestion_role
-          
-          ### Glue crawler raw configuration
-          TF_VAR_raw_crawler_names: crawler_raw_orders,crawler_raw_products,crawler_raw_departments,crawler_raw_aisles
+      SNOWFLAKE_USER: ${{ secrets.SNOWFLAKE_USER }}
+      SNOWFLAKE_PASSWORD: ${{ secrets.SNOWFLAKE_PASSWORD }}
+      SNOWFLAKE_ACCOUNT: ${{ secrets.SNOWFLAKE_ACCOUNT }}
+      SNOWFLAKE_ROLE: ${{ secrets.SNOWFLAKE_ROLE }}
+      SNOWFLAKE_WAREHOUSE: ${{ secrets.SNOWFLAKE_WAREHOUSE }}
 
+      TF_VAR_aws_region: ap-southeast-2
 
+      ### Lambda & Crawler
+      TF_VAR_lambda_function_name: batch_snowflake_ingestion_1_1
+      TF_VAR_lambda_handler: lambda_function.lambda_handler
+      TF_VAR_lambda_runtime: python3.13
+      TF_VAR_lambda_zip_path: ./assets/1.1_batch_ingestion_lambda.zip
+      TF_VAR_bucket_name: imba-test-aaron-landing
+      TF_VAR_landing_prefix_base: data/batch
+      TF_VAR_eventbridge_schedule_expression: cron(0 14 30 * ? *)
+      TF_VAR_lambda_role_name: lambda_batch_ingestion_role
+      TF_VAR_raw_crawler_names: crawler_raw_orders,crawler_raw_products,crawler_raw_departments,crawler_raw_aisles
 
+      TF_VAR_snowflake_user: ${{ secrets.SNOWFLAKE_USER }}
+      TF_VAR_snowflake_password: ${{ secrets.SNOWFLAKE_PASSWORD }}
+      TF_VAR_snowflake_account: ${{ secrets.SNOWFLAKE_ACCOUNT }}
+      TF_VAR_snowflake_role: ${{ secrets.SNOWFLAKE_ROLE }}
+      TF_VAR_snowflake_warehouse: ${{ secrets.SNOWFLAKE_WAREHOUSE }}
 
-          TF_VAR_snowflake_user: ${{ secrets.SNOWFLAKE_USER }}
-          TF_VAR_snowflake_password: ${{ secrets.SNOWFLAKE_PASSWORD }}
-          TF_VAR_snowflake_account: ${{ secrets.SNOWFLAKE_ACCOUNT }}
-          TF_VAR_snowflake_role: ${{ secrets.SNOWFLAKE_ROLE }}
-          TF_VAR_snowflake_warehouse: ${{ secrets.SNOWFLAKE_WAREHOUSE }}
+      ### Glue ETL: Orders
+      TF_VAR_orders_job_name: glue-job-orders
+      TF_VAR_orders_script_path: s3://imba-test-glue-etl-aaron/scripts/2.2.1_batch_ETL_orders.py
+      TF_VAR_orders_output_path: s3://imba-test-glue-etl-aaron/data-clean/batch/orders/
+      TF_VAR_orders_input_table: raw_batch_orders
+      TF_VAR_orders_temp_dir: s3://imba-test-glue-etl-aaron/temp/
+      TF_VAR_orders_eval_set_filter: test
 
+      ### Glue ETL: Departments
+      TF_VAR_departments_job_name: glue-job-departments
+      TF_VAR_departments_script_path: s3://imba-test-glue-etl-aaron/scripts/2.2.2_batch_ETL_departments_scd2.py
+      TF_VAR_departments_input_table: raw_batch_departments
+      TF_VAR_departments_output_path: s3://imba-test-glue-etl-aaron/data-clean/batch/departments/
+      TF_VAR_departments_historical_path: s3://imba-test-glue-etl-aaron/data-clean/batch/departments/
+      TF_VAR_departments_temp_dir: s3://imba-test-glue-etl-aaron/temp/
+
+      ### Glue ETL: Aisles
+      TF_VAR_aisles_job_name: glue-job-aisles
+      TF_VAR_aisles_script_path: s3://imba-test-glue-etl-aaron/scripts/2.2.3_batch_ETL_aisles_scd2.py
+      TF_VAR_aisles_input_table: raw_batch_aisles
+      TF_VAR_aisles_output_path: s3://imba-test-glue-etl-aaron/data-clean/batch/aisles/
+      TF_VAR_aisles_historical_path: s3://imba-test-glue-etl-aaron/data-clean/batch/aisles/
+      TF_VAR_aisles_temp_dir: s3://imba-test-glue-etl-aaron/temp/
+
+      ### Glue ETL: Products
+      TF_VAR_products_job_name: glue-job-products
+      TF_VAR_products_script_path: s3://imba-test-glue-etl-aaron/scripts/2.2.4_batch_ETL_products_facts.py
+      TF_VAR_products_input_table: raw_batch_products
+      TF_VAR_products_output_path: s3://imba-test-glue-etl-aaron/data-clean/batch/products/
+      TF_VAR_products_temp_dir: s3://imba-test-glue-etl-aaron/temp/
 
     steps:
       - name: Checkout code
@@ -60,7 +87,7 @@ jobs:
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v2
         with:
-          terraform_version: 1.7.5  # 可根据你 WSL 中已安装版本修改
+          terraform_version: 1.7.5
 
       - name: Terraform Init
         run: terraform init
@@ -71,9 +98,7 @@ jobs:
         working-directory: terraform
 
       - name: Terraform Plan
-        run: |
-          echo "Using TF_VAR_ variables from environment"
-          terraform plan -input=false
+        run: terraform plan -input=false
         working-directory: terraform
 
       - name: Terraform Apply

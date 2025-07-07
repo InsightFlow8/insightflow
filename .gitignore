@@ -59,3 +59,6 @@ terraform.tfstate.backup
 
 # 但保留以下特定文件（取消忽略）
 # !imba_data/*.csv
+
+# 未来正式项目可以改进之处的初步构思
+future_design/*
