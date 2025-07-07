@@ -1,0 +1,140 @@
+name: Deploy AWS resources
+
+on:
+  #   push:
+  #     branches: [main]
+  workflow_dispatch: # allows manual trigger
+    inputs:
+      region:
+        description: "AWS region to deploy to"
+        required: true
+        default: "ap-southeast-2"
+      deployS3:
+        description: "Deploy S3 bucket?"
+        required: true
+        default: "false"
+      deployGlueTables:
+        description: "Deploy tables in Glue Catalog?"
+        required: true
+        default: "false"
+      deployEC2:
+        description: "Deploy VPC and EC2 instance?"
+        required: true
+        default: "false"
+      deployDMS:
+        description: "Deploy DMS instance, endpoints, and tasks?"
+        required: true
+        default: "false"
+      deployEMR:
+        description: "Deploy EMR resources?"
+        required: true
+        default: "false"
+      deployMWAA:
+        description: "Deploy MWAA dag?"
+        required: true
+        default: "false"
+
+jobs:
+  terraform:
+    name: Run Terraform
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: environments/dev
+
+    env:
+      TF_VERSION: 1.6.0
+
+    steps:
+      - name: Configure AWS credentials
+        id: creds
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ github.event.inputs.region }}
+
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Install boto3 for external data script
+        run: pip3 install boto3
+
+      - name: Terraform Init
+        run: terraform init
+
+      - name: Terraform Format Check
+        run: terraform fmt -check
+
+      - name: Terraform validate
+        run: terraform validate
+
+      - name: Terraform Plan
+        run: terraform plan
+
+      - name: Terraform Apply S3
+        if: ${{ github.event.inputs.deployS3 == 'true' }} # && github.ref == 'refs/heads/main' : apply only on main
+        run: terraform apply -auto-approve -target=module.s3
+
+      - name: Terraform Apply Glue Databases and Tables
+        if: ${{ github.event.inputs.deployGlueTables == 'true' }}
+        run: terraform apply -auto-approve -target=module.glue_catalog_table
+
+      - name: Terraform Apply VPC, EC2
+        if: ${{ github.event.inputs.deployEC2 == 'true' }}
+        run: |
+          terraform refresh
+          terraform apply -auto-approve -target=module.vpc -target=module.ec2
+
+      - name: Terraform Apply DMS
+        if: ${{ github.event.inputs.deployDMS == 'true'}}
+        run: |
+          terraform refresh
+          terraform apply -auto-approve -target=module.dms
+
+      # - name: Extract source bucket from tfvars
+      #   id: extract-vars
+      #   run: |
+      #     SOURCE_BUCKET=$(grep 'source_bucket' ./terraform.tfvars | cut -d '=' -f2 | tr -d ' "')
+      #     echo "SOURCE_BUCKET=$SOURCE_BUCKET" >> $GITHUB_ENV
+
+      # upload script to S3 and deploy EMR script
+      - name: Terraform Apply EMR IAM roles, pyspark script
+        if: ${{ github.event.inputs.deployEMR == 'true' }}
+        run: |
+          terraform refresh
+          terraform apply -auto-approve -target=module.emr
+
+      - name: Terraform Apply MWAA
+        if: ${{ github.event.inputs.deployMWAA == 'true' }}
+        run: |
+          terraform refresh
+          terraform apply -auto-approve -target=module.mwaa
+
+      - name: Trigger MWAA DAG via Bastion
+        run: |
+          # Save private key to a file
+          echo "$BASTION_SSH_KEY" > aws_key
+          chmod 600 aws_key
+
+          # Get Bastion EC2 Public IP
+          PUBLIC_IP=$(aws ec2 describe-instances \
+            --filters "Name=tag:Name,Values=dev-bastion-ec2" "Name=instance-state-name,Values=running" \
+            --query "Reservations[*].Instances[*].PublicIpAddress" \
+            --output text)
+
+          echo "Connecting to Bastion Host: $PUBLIC_IP"
+
+          # Copy the trigger script to EC2 (optional)
+          scp -q -i aws_key -o StrictHostKeyChecking=no ../../scripts/trigger_dag.sh ec2-user@$PUBLIC_IP:~/trigger_dag.sh
+
+          # Run the script remotely
+          ssh -i aws_key -o StrictHostKeyChecking=no ec2-user@$PUBLIC_IP "bash ~/trigger_dag.sh"
+        env:
+          BASTION_SSH_KEY: ${{ secrets.BASTION_SSH_KEY }}
