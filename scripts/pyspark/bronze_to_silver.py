@@ -12,7 +12,7 @@ logger.setLevel(logging.INFO)
 
 class DataProcessor:
     def __init__(self):
-        self.data_bucket = sys.argv[1] if len(sys.argv) > 1 else "destination-bucket-chien" 
+        self.data_bucket = sys.argv[1] if len(sys.argv) > 1 else "destination-bucket-insightflow" 
         self.raw_database = sys.argv[2] if len(sys.argv) > 2 else "imba_raw"  
         self.silver_database = "imba_silver"  # Always use imba_silver for output
         self.silver_data_folder = sys.argv[3] if len(sys.argv) > 3 else "imba-silver"  

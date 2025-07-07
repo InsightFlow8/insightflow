@@ -2,14 +2,14 @@
 env = "dev"
 
 # S3
-source_bucket      = "source-bucket-chien"
-destination_bucket = "destination-bucket-chien"
+source_bucket      = "source-bucket-insightflow"
+destination_bucket = "destination-bucket-insightflow"
 
 # Glue tables
-raw_data_bucket      = "source-bucket-chien"
+raw_data_bucket      = "source-bucket-insightflow"
 raw_data_folder      = "imba-raw"
 raw_database_name    = "imba_raw"
-silver_data_bucket   = "destination-bucket-chien"
+silver_data_bucket   = "destination-bucket-insightflow"
 silver_data_folder   = "imba-silver"
 silver_database_name = "imba_silver"
 
