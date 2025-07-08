@@ -14,7 +14,7 @@ terraform {
   }
 
   backend "s3" {
-    bucket = "terraform-chien"
+    bucket = "terraform-insightflow"
     key    = "dev/terraform.tfstate"
     region = "ap-southeast-2"
     # dynamodb_table = "terraform-lock-table" //  state locking, prevents concurrent modifications to the state file

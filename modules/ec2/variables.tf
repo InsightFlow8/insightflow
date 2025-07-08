@@ -14,7 +14,7 @@ variable "db_name" {
 
 variable "s3_bucket" {
   type    = string
-  default = "source-bucket-chien"
+  default = "source-bucket-insightflow"
 }
 
 variable "region" {

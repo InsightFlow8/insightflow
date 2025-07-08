@@ -13,6 +13,10 @@ on:
         description: "Deploy S3 bucket?"
         required: true
         default: "false"
+      deployLambda:
+        description: "Deploy Lambda function?"
+        required: true
+        default: "false"
       deployGlueTables:
         description: "Deploy tables in Glue Catalog?"
         required: true
@@ -63,6 +67,33 @@ jobs:
         with:
           terraform_version: ${{ env.TF_VERSION }}
 
+      - name: Build Snowflake Layer
+        run: |
+          mkdir -p ../../modules/lambda/layers/snowflake/python/lib/python3.12/site-packages
+          pip install \
+            --platform manylinux2014_x86_64 \
+            --target=../../modules/lambda/layers/snowflake/python/lib/python3.12/site-packages \
+            --implementation cp \
+            --python-version 3.12 \
+            --only-binary=:all: --upgrade \
+            snowflake-connector-python
+
+      - name: Build PyArrow Layer
+        run: |
+          mkdir -p ../../modules/lambda/layers/pyarrow/python/lib/python3.12/site-packages
+          pip install \
+            --platform manylinux2014_x86_64 \
+            --target=../../modules/lambda/layers/pyarrow/python/lib/python3.12/site-packages \
+            --implementation cp \
+            --python-version 3.12 \
+            --only-binary=:all: --upgrade \
+            pyarrow
+
+      - name: Zip layers
+        run: |
+          cd ../../modules/lambda/layers/snowflake && zip -r ../snowflake-layer.zip . && cd -
+          cd ../../modules/lambda/layers/pyarrow && zip -r ../pyarrow-layer.zip . && cd -
+
       - name: Install boto3 for external data script
         run: pip3 install boto3
 
@@ -81,6 +112,31 @@ jobs:
       - name: Terraform Apply S3
         if: ${{ github.event.inputs.deployS3 == 'true' }} # && github.ref == 'refs/heads/main' : apply only on main
         run: terraform apply -auto-approve -target=module.s3
+
+      - name: Terraform Apply Lambda
+        if: ${{ github.event.inputs.deployLambda == 'true' }}
+        run: |
+          terraform refresh
+          terraform apply -auto-approve -target=module.lambda
+
+      - name: Invoke Lambda with test event
+        if: ${{ github.event.inputs.deployLambda == 'true' }}
+        run: |
+          aws lambda invoke \
+            --function-name data-ingestion-snowflake \
+            --payload '{}' \
+            --region ap-southeast-2 \
+            --cli-read-timeout 300 \
+            --cli-connect-timeout 10 \
+            response.json
+
+          cat response.json
+
+      - name: Cleanup layer zips
+        if: ${{ github.event.inputs.deployLambda == 'true' }}
+        run: |
+          rm -f ../../modules/lambda/snowflake-layer.zip
+          rm -f ../../modules/lambda/pyarrow-layer.zip
 
       - name: Terraform Apply Glue Databases and Tables
         if: ${{ github.event.inputs.deployGlueTables == 'true' }}
@@ -118,6 +174,7 @@ jobs:
           terraform apply -auto-approve -target=module.mwaa
 
       - name: Trigger MWAA DAG via Bastion
+        if: ${{ github.event.inputs.deployMWAA == 'true' }}
         run: |
           # Save private key to a file
           echo "$BASTION_SSH_KEY" > aws_key
