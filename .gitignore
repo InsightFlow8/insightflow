@@ -1,0 +1,3 @@
+
+# Ignore environment files
+functions/modules/prerequisite_snowflake_data_upstream_load/.env
