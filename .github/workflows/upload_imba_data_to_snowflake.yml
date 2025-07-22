@@ -10,8 +10,10 @@ jobs:
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
+      with:
+        lfs: true
 
-    - name: Git LFS pull
+    - name: Setup Git LFS
       run: |
         git lfs install
         git lfs pull
