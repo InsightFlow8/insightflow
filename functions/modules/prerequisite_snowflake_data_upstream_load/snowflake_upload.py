@@ -147,7 +147,7 @@ for table in tables_config:
     copy_sql = f'''
     COPY INTO {table['table_name']}
     FROM @~/{table['s3_file']}
-    FILE_FORMAT = (TYPE = CSV FIELD_OPTIONALLY_ENCLOSED_BY='"' SKIP_HEADER=1)
+    FILE_FORMAT = (TYPE = CSV FIELD_OPTIONALLY_ENCLOSED_BY='"' SKIP_HEADER=1 ERROR_ON_COLUMN_COUNT_MISMATCH=FALSE)
     '''
     cs.execute(copy_sql)
     print(f"Data copied into {table['table_name']}.")
