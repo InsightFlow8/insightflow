@@ -58,14 +58,12 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          lfs: true
+        uses: actions/checkout@v3
 
       - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
+        uses: hashicorp/setup-terraform@v2
         with:
-          terraform_version: 1.8.5
+          terraform_version: 1.7.5
 
       - name: Terraform Init
         run: terraform init
@@ -78,7 +76,8 @@ jobs:
       # Create Lambda deployment packages
       - name: Create Lambda S3 to RDS Raw deployment package
         run: |
-          zip -j terraform/assets/lambda_s3_to_rds_raw.zip functions/modules/data_sync/raw/lambda_s3_to_rds_raw.py
+          cd functions/modules/data_sync/raw
+          zip -r ../../../../terraform/assets/lambda_s3_to_rds_raw.zip lambda_s3_to_rds_raw.py
         shell: bash
 
       # --- S3 Buckets ---
