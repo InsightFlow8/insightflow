@@ -12,6 +12,8 @@ jobs:
     steps:
       - name: 📥 Checkout repository
         uses: actions/checkout@v4
+        with:
+          lfs: true # <-- IMPORTANT: This tells the action to download LFS files
 
       - name: 🐍 Set up Python
         uses: actions/setup-python@v4
