@@ -1,3 +1,4 @@
+# Manually triggered workflow to load initial data
 name: Load Initial Data to Snowflake
 
 on:
