@@ -1,18 +1,10 @@
 import os
-import boto3
 import snowflake.connector
-from dotenv import load_dotenv
 
 # Load environment variables
-load_dotenv()
 
-# AWS & Snowflake configuration
-aws_config = {
-    'aws_access_key_id': os.getenv("AWS_ACCESS_KEY_ID"),    # need to update for the group AWS account
-    'aws_secret_access_key': os.getenv("AWS_SECRET_ACCESS_KEY"),    # need to update for the group AWS account
-    'bucket': 'imba-test-bucket-aaron', # need to update for the group raw data bucket
-    's3_prefix': 'snowflake-data/'  # need to update for the group raw data bucket prefix
-}
+
+# Snowflake configuration (AWS S3 configuration removed for direct upload)
 
 # need to update for the group Snowflake account
 sf_config = {
@@ -109,13 +101,6 @@ tables_config = [
     # Add more tables here as needed...
 ]
 
-# Step 1: Upload files to S3
-s3 = boto3.client(
-    's3',
-    aws_access_key_id=aws_config['aws_access_key_id'],
-    aws_secret_access_key=aws_config['aws_secret_access_key']
-)
-
 # Step 2: Connect to Snowflake
 conn = snowflake.connector.connect(
     user=sf_config['user'],
@@ -147,21 +132,12 @@ try:
 except Exception as e:
     print(f"Warning: Could not resume warehouse. It may already be running.\n{e}")
 
-# Step 3: Create stage (only once)
-create_stage_sql = f'''
-CREATE OR REPLACE STAGE {sf_config['database']}.{sf_config['schema']}.{sf_config['stage_name']}
-URL='s3://{aws_config['bucket']}/{aws_config['s3_prefix']}'
-STORAGE_INTEGRATION = {sf_config['storage_integration_name']}
-FILE_FORMAT = (TYPE = CSV FIELD_OPTIONALLY_ENCLOSED_BY='"' SKIP_HEADER=1)
-'''
-cs.execute(create_stage_sql)
-
 # Step 4: Loop through all table configs
 for table in tables_config:
-    # 4.1 Upload to S3
-    s3_path = aws_config['s3_prefix'] + table['s3_file']
-    s3.upload_file(table['local_file'], aws_config['bucket'], s3_path)
-    print(f"Uploaded {table['local_file']} to s3://{aws_config['bucket']}/{s3_path}")
+    # 4.1 Upload to Snowflake internal stage
+    put_command = f"PUT file://{table['local_file']} @~/{table['s3_file']} AUTO_COMPRESS=TRUE"
+    cs.execute(put_command)
+    print(f"Uploaded {table['local_file']} to Snowflake internal stage.")
 
     # 4.2 Create table
     cs.execute(table['create_sql'])
@@ -170,7 +146,7 @@ for table in tables_config:
     # 4.3 COPY INTO
     copy_sql = f'''
     COPY INTO {table['table_name']}
-    FROM @{sf_config['stage_name']}/{table['s3_file']}
+    FROM @~/{table['s3_file']}
     FILE_FORMAT = (TYPE = CSV FIELD_OPTIONALLY_ENCLOSED_BY='"' SKIP_HEADER=1)
     '''
     cs.execute(copy_sql)
