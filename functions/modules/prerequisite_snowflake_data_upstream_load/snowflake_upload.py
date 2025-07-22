@@ -128,6 +128,10 @@ conn = snowflake.connector.connect(
 )
 cs = conn.cursor()
 
+# Set current database and schema
+cs.execute(f"USE DATABASE {sf_config['database']}")
+cs.execute(f"USE SCHEMA {sf_config['schema']}")
+
 # Step 2.5: Resume warehouse if needed
 resume_sql = f"ALTER WAREHOUSE {sf_config['warehouse']} RESUME"
 try:
@@ -138,7 +142,7 @@ except Exception as e:
 
 # Step 3: Create stage (only once)
 create_stage_sql = f'''
-CREATE OR REPLACE STAGE {sf_config['stage_name']}
+CREATE OR REPLACE STAGE {sf_config['database']}.{sf_config['schema']}.{sf_config['stage_name']}
 URL='s3://{aws_config['bucket']}/{aws_config['s3_prefix']}'
 STORAGE_INTEGRATION = {sf_config['storage_integration_name']}
 FILE_FORMAT = (TYPE = CSV FIELD_OPTIONALLY_ENCLOSED_BY='"' SKIP_HEADER=1)
