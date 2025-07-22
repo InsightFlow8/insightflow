@@ -128,8 +128,15 @@ conn = snowflake.connector.connect(
 )
 cs = conn.cursor()
 
-# Set current database and schema
+# Create database and schema if they don't exist, then set current
+print(f"Attempting to create database if not exists: {sf_config['database']}")
+cs.execute(f"CREATE DATABASE IF NOT EXISTS {sf_config['database']}")
+print(f"Attempting to use database: {sf_config['database']}")
 cs.execute(f"USE DATABASE {sf_config['database']}")
+
+print(f"Attempting to create schema if not exists: {sf_config['schema']}")
+cs.execute(f"CREATE SCHEMA IF NOT EXISTS {sf_config['schema']}")
+print(f"Attempting to use schema: {sf_config['schema']}")
 cs.execute(f"USE SCHEMA {sf_config['schema']}")
 
 # Step 2.5: Resume warehouse if needed
