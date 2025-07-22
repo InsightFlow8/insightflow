@@ -124,6 +124,36 @@ Streaming ingestion module (future extension):
 
 ## Deployment
 
+### Handling Large Data Files (Git LFS)
+
+This project contains large data files (e.g., in the `imba_data/` directory) that exceed GitHub's 100MB file size limit. We use [Git Large File Storage (LFS)](https://git-lfs.github.com/) to manage these files.
+
+**First-time Setup:**
+
+If you haven't used Git LFS on your machine before, you need to install it.
+
+1.  **Install Git LFS.**
+    *   **macOS (using Homebrew):**
+        ```bash
+        brew install git-lfs
+        ```
+    *   **Windows/Linux:** Follow the instructions on the [official Git LFS website](https://git-lfs.com/).
+
+2.  **Install LFS hooks in your local Git config.** This only needs to be done once per machine.
+    ```bash
+    git lfs install
+    ```
+
+**Adding New Large Files:**
+
+The project is already configured to track `.csv` and `.csv.gz` files in the `imba_data/` directory. If you need to add a new type of large file, you must tell Git LFS to track it **before** you `git add` the file.
+
+For example, to track all `.zip` files in the `assets` directory:
+```bash
+git lfs track "assets/*.zip"
+```
+Make sure to commit the changes to `.gitattributes` along with your new files.
+
 ### Local Deployment
 1. Clone the repository and configure AWS credentials.
 2. Initialize Terraform:
