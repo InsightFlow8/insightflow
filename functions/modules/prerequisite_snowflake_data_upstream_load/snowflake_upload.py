@@ -135,7 +135,9 @@ except Exception as e:
 # Step 4: Loop through all table configs
 for table in tables_config:
     # 4.1 Upload to Snowflake internal stage
-    put_command = f"PUT file://{table['local_file']} @~/{table['s3_file']} AUTO_COMPRESS=TRUE"
+    is_gzipped = table['local_file'].endswith('.gz')
+    auto_compress_option = "FALSE" if is_gzipped else "TRUE"
+    put_command = f"PUT file://{table['local_file']} @~/{table['s3_file']} AUTO_COMPRESS={auto_compress_option} OVERWRITE=TRUE"
     cs.execute(put_command)
     print(f"Uploaded {table['local_file']} to Snowflake internal stage.")
 
