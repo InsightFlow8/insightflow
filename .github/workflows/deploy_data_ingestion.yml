@@ -1,0 +1,202 @@
+name: Deploy S3 buckets & Module-data_ingestion (batch & streaming)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'terraform/dev/**'
+      - 'terraform/modules/**'
+      - '.github/workflows/deploy_data_ingestion.yml'
+      - 'terraform/assets/**'
+
+permissions:
+  contents: read
+
+jobs:
+  terraform:
+    name: Apply S3 Buckets and Batch Ingestion
+    runs-on: ubuntu-latest
+
+    env:
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_REGION: ap-southeast-2
+
+      TF_VAR_aws_region: ap-southeast-2
+      TF_VAR_raw_bucket: insightflow-raw-bucket
+      TF_VAR_clean_bucket: insightflow-clean-bucket
+
+      TF_VAR_snowflake_user: ${{ secrets.SNOWFLAKE_USER }}
+      TF_VAR_snowflake_password: ${{ secrets.SNOWFLAKE_PASSWORD }}
+      TF_VAR_snowflake_account: ${{ secrets.SNOWFLAKE_ACCOUNT }}
+      TF_VAR_snowflake_warehouse: ${{ secrets.SNOWFLAKE_WAREHOUSE }}
+      TF_VAR_snowflake_role: ${{ secrets.SNOWFLAKE_ROLE }}
+
+      TF_VAR_db_name: insightflow_imba
+      TF_VAR_db_username: ${{ secrets.DB_USERNAME }}
+      TF_VAR_db_password: ${{ secrets.DB_PASSWORD }}
+
+      TF_VAR_ami_id: ami-00839deb72faa8a04
+      TF_VAR_instance_type: t2.micro
+      TF_VAR_key_name: de_test_ec2
+
+      TF_VAR_raw_prefix: data/batch
+      TF_VAR_aws_az: ap-southeast-2a
+
+      # Data Sync Raw Configuration Variables
+      TF_VAR_table_name: '["orders", "aisles", "products", "departments", "order_products_prior", "order_products_train"]'
+      TF_VAR_s3_key_prefix: '["data/batch/orders/", "data/batch/aisles/", "data/batch/products/", "data/batch/departments/", "data/batch/order_products_prior/", "data/batch/order_products_train/"]'
+      TF_VAR_start_ts: 1900-01-01-0000
+      TF_VAR_end_ts: 2099-12-31-2359
+      TF_VAR_eventbridge_schedule: cron(0 16 * * ? *)
+
+      # Glue Crawler Configuration Variables
+      # TF_VAR_recrawl_behavior: CRAWL_EVERYTHING # Only for the first crawler run
+      TF_VAR_recrawl_behavior: CRAWL_NEW_FOLDERS_ONLY # Incremental crawling for subsequent runs
+      TF_VAR_crawler_schedule: "cron(0 15 30 * ? *)"
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.8.5
+
+      - name: Terraform Init
+        run: terraform init
+        working-directory: terraform/dev
+      
+      - name: Terraform Format Check
+        run: terraform fmt -check
+        working-directory: terraform/dev
+
+      # Create Lambda deployment packages
+      - name: Create Lambda S3 to RDS Raw deployment package
+        run: |
+          zip -j terraform/assets/lambda_s3_to_rds_raw.zip functions/modules/data_sync/raw/lambda_s3_to_rds_raw.py
+        shell: bash
+
+      # --- S3 Buckets ---
+      - name: Terraform Plan (S3 Buckets Only)
+        run: terraform plan -input=false -target=module.s3_buckets
+        working-directory: terraform/dev
+
+      - name: Terraform Apply (S3 Buckets Only) with Retry
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 10
+          max_attempts: 3
+          retry_wait_seconds: 30
+          command: |
+            cd terraform/dev
+            terraform apply -auto-approve -target=module.s3_buckets
+
+      # --- VPC ---
+      - name: Terraform Plan (VPC Only)
+        run: terraform plan -input=false -target=module.vpc
+        working-directory: terraform/dev
+
+      - name: Terraform Apply (VPC Only) with Retry
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 10
+          max_attempts: 3
+          retry_wait_seconds: 30
+          command: |
+            cd terraform/dev
+            terraform apply -auto-approve -target=module.vpc
+
+      # --- RDS PostgreSQL ---
+      - name: Terraform Plan (RDS PostgreSQL Only)
+        run: terraform plan -input=false -target=module.rds_postgresql
+        working-directory: terraform/dev
+
+      - name: Terraform Apply (RDS PostgreSQL Only) with Retry
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 15
+          max_attempts: 3
+          retry_wait_seconds: 60
+          command: |
+            cd terraform/dev
+            terraform apply -auto-approve -target=module.rds_postgresql
+
+      # --- EC2 ---
+      - name: Terraform Plan (EC2 Only)
+        run: terraform plan -input=false -target=module.ec2
+        working-directory: terraform/dev
+
+      - name: Terraform Apply (EC2 Only) with Retry
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 10
+          max_attempts: 3
+          retry_wait_seconds: 30
+          command: |
+            cd terraform/dev
+            terraform apply -auto-approve -target=module.ec2
+      
+      # --- Batch Ingestion ---
+      - name: Terraform Plan (Batch Ingestion Only)
+        run: terraform plan -input=false -target=module.batch_ingestion
+        working-directory: terraform/dev
+
+      - name: Terraform Apply (Batch Ingestion Only) with Retry
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 15
+          max_attempts: 3
+          retry_wait_seconds: 60
+          command: |
+            cd terraform/dev
+            terraform apply -auto-approve -target=module.batch_ingestion
+
+      # --- Streaming Ingestion ---
+      - name: Terraform Plan (Streaming Ingestion Only)
+        run: terraform plan -input=false -target=module.streaming_ingestion
+        working-directory: terraform/dev
+
+      - name: Terraform Apply (Streaming Ingestion Only) with Retry
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 15
+          max_attempts: 3
+          retry_wait_seconds: 60
+          command: |
+            cd terraform/dev
+            terraform apply -auto-approve -target=module.streaming_ingestion
+
+      # --- Glue Crawler Raw ---
+      - name: Terraform Plan (Glue Crawler Raw Only)
+        run: terraform plan -input=false -target=module.glue_crawler_raw
+        working-directory: terraform/dev
+
+      - name: Terraform Apply (Glue Crawler Raw Only) with Retry
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 15
+          max_attempts: 3
+          retry_wait_seconds: 60
+          command: |
+            cd terraform/dev
+            terraform apply -auto-approve -target=module.glue_crawler_raw
+
+      # --- Data Sync Raw ---
+      - name: Terraform Plan (Data Sync Raw Only)
+        run: terraform plan -input=false -target=module.data_sync_raw
+        working-directory: terraform/dev
+
+      - name: Terraform Apply (Data Sync Raw Only) with Retry
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 15
+          max_attempts: 3
+          retry_wait_seconds: 60
+          command: |
+            cd terraform/dev
+            terraform apply -auto-approve -target=module.data_sync_raw
