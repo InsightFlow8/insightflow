@@ -13,6 +13,15 @@ jobs:
       with:
         lfs: true
 
+    - name: Debug Git LFS files
+      run: |
+        echo "Listing files in imba_data:"
+        ls -lh imba_data/
+        echo "\nGit LFS tracked files:"
+        git lfs ls-files
+        echo "\nChecking content of aisles.csv:"
+        head -n 5 imba_data/aisles.csv
+
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
