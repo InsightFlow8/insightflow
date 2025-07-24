@@ -66,7 +66,7 @@ jobs:
           terraform_version: 1.7.5
 
       - name: Terraform Init
-        run: terraform init
+        run: terraform init -reconfigure
         working-directory: terraform/dev
       
       - name: Terraform Format Check
