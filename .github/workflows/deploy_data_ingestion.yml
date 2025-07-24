@@ -156,19 +156,19 @@ jobs:
             terraform apply -auto-approve -target=module.batch_ingestion
 
       # --- Streaming Ingestion ---
-      - name: Terraform Plan (Streaming Ingestion Only)
-        run: terraform plan -input=false -target=module.streaming_ingestion
-        working-directory: terraform/dev
+      # - name: Terraform Plan (Streaming Ingestion Only)
+      #   run: terraform plan -input=false -target=module.streaming_ingestion
+      #   working-directory: terraform/dev
 
-      - name: Terraform Apply (Streaming Ingestion Only) with Retry
-        uses: nick-fields/retry@v3
-        with:
-          timeout_minutes: 15
-          max_attempts: 3
-          retry_wait_seconds: 60
-          command: |
-            cd terraform/dev
-            terraform apply -auto-approve -target=module.streaming_ingestion
+      # - name: Terraform Apply (Streaming Ingestion Only) with Retry
+      #   uses: nick-fields/retry@v3
+      #   with:
+      #     timeout_minutes: 15
+      #     max_attempts: 3
+      #     retry_wait_seconds: 60
+      #     command: |
+      #       cd terraform/dev
+      #       terraform apply -auto-approve -target=module.streaming_ingestion
 
       # --- Glue Crawler Raw ---
       - name: Terraform Plan (Glue Crawler Raw Only)
