@@ -101,8 +101,8 @@ module "rds_postgresql" {
   env    = "insightflow-dev"
 
   db_name                     = var.db_name
-  rds_db_username                 = var.rds_db_username
-  rds_db_password                 = var.rds_db_password
+  rds_db_username             = var.rds_db_username
+  rds_db_password             = var.rds_db_password
   private_subnet_ids          = module.vpc.private_subnet_ids
   postgres_security_group_ids = [module.vpc.postgres_security_group_id]
   depends_on                  = [module.vpc]
