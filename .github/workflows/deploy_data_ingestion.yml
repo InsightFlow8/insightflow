@@ -39,12 +39,12 @@ jobs:
 
       TF_VAR_ami_id: ami-00839deb72faa8a04
       TF_VAR_instance_type: t2.micro
-      TF_VAR_key_name: de_test_ec2
+      TF_VAR_key_name: de_insightflow_ec2
 
       TF_VAR_raw_prefix: data/batch
       TF_VAR_aws_az: ap-southeast-2a
 
-      # Data Sync Raw Configuration Variables
+      # Data Sync Raw Configuration Variables d
       TF_VAR_table_name: '["orders", "aisles", "products", "departments", "order_products_prior", "order_products_train"]'
       TF_VAR_s3_key_prefix: '["data/batch/orders/", "data/batch/aisles/", "data/batch/products/", "data/batch/departments/", "data/batch/order_products_prior/", "data/batch/order_products_train/"]'
       TF_VAR_start_ts: 1900-01-01-0000
