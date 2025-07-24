@@ -36,8 +36,8 @@ jobs:
       TF_VAR_snowflake_role: ${{ secrets.SNOWFLAKE_ROLE }}
 
       TF_VAR_db_name: insightflow_imba
-      TF_VAR_db_username: ${{ secrets.DB_USERNAME }}
-      TF_VAR_db_password: ${{ secrets.DB_PASSWORD }}
+      TF_VAR_rds_db_username: ${{ secrets.RDS_DB_USERNAME }}
+      TF_VAR_rds_db_password: ${{ secrets.RDS_DB_PASSWORD }}
 
       TF_VAR_ami_id: ami-00839deb72faa8a04
       TF_VAR_instance_type: t2.micro
