@@ -85,13 +85,13 @@ module "ec2" {
   bastion_security_group_ids = [module.vpc.bastion_security_group_id]
   region                     = var.aws_region
 
-  rds_endpoint    = module.rds_postgresql.rds_endpoint
-  rds_host        = module.rds_postgresql.rds_host
-  rds_port        = module.rds_postgresql.rds_port
-  db_name         = var.db_name
-  db_username     = var.rds_db_username
-  db_password     = var.rds_db_password
-  sql_s3_path     = "s3://insightflow-imba-scripts/create_tables.sql"
+  rds_endpoint = module.rds_postgresql.rds_endpoint
+  rds_host     = module.rds_postgresql.rds_host
+  rds_port     = module.rds_postgresql.rds_port
+  db_name      = var.db_name
+  db_username  = var.rds_db_username
+  db_password  = var.rds_db_password
+  sql_s3_path  = "s3://insightflow-imba-scripts/create_tables.sql"
 
   depends_on = [module.vpc, module.rds_postgresql]
 }
