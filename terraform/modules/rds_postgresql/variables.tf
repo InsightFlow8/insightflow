@@ -11,6 +11,7 @@ variable "db_name" {
 variable "db_username" {
   description = "Master username for PostgreSQL"
   type        = string
+  default     = "testuser" # Temporary default for debugging
 }
 
 variable "db_password" {
