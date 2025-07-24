@@ -16,7 +16,7 @@ module "s3_buckets" {
 module "vpc" {
   source            = "../modules/vpc"
   github_repository = "Tobby-Guo/insightflow"
-  bucket_name       = "insightflow-imba-group-state"
+  bucket_name       = "insightflow-imba-group-state-tobby"
 }
 
 
@@ -89,8 +89,8 @@ module "ec2" {
   rds_host     = module.rds_postgresql.rds_host
   rds_port     = module.rds_postgresql.rds_port
   db_name      = var.db_name
-  db_username  = var.rds_db_username
-  db_password  = var.rds_db_password
+  db_username  = var.db_username
+  db_password  = var.db_password
   sql_s3_path  = "s3://insightflow-imba-scripts/create_tables.sql"
 
   depends_on = [module.vpc, module.rds_postgresql]
@@ -101,8 +101,8 @@ module "rds_postgresql" {
   env    = "insightflow-dev"
 
   db_name                     = var.db_name
-  rds_db_username             = var.rds_db_username
-  rds_db_password             = var.rds_db_password
+  rds_db_username             = var.db_username
+  rds_db_password             = var.db_password
   private_subnet_ids          = module.vpc.private_subnet_ids
   postgres_security_group_ids = [module.vpc.postgres_security_group_id]
   depends_on                  = [module.vpc]
@@ -144,8 +144,8 @@ module "data_sync_raw" {
   rds_host     = module.rds_postgresql.rds_host
   rds_port     = module.rds_postgresql.rds_port
   rds_db       = var.db_name
-  rds_user     = var.rds_db_username
-  rds_password = var.rds_db_password
+  rds_user     = var.db_username
+  rds_password = var.db_password
 
   table_name  = var.table_name
   schema_name = "insightflow_raw"
