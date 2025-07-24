@@ -5,7 +5,7 @@ output "github_action_role_arn" {
 
 output "private_subnet_ids" {
   description = "List of private subnet IDs"
-  value       = [aws_subnet.private.id]
+  value       = [aws_subnet.private.id, aws_subnet.private_b.id]
 }
 
 output "postgres_security_group_id" {

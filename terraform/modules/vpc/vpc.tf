@@ -15,6 +15,12 @@ resource "aws_subnet" "private" {
   availability_zone = "ap-southeast-2a"
 }
 
+resource "aws_subnet" "private_b" {
+  vpc_id     = aws_vpc.main.id
+  cidr_block = "10.0.3.0/24"
+  availability_zone = "ap-southeast-2b"
+}
+
 resource "aws_internet_gateway" "gw" {
   vpc_id = aws_vpc.main.id
 }
@@ -51,8 +57,13 @@ resource "aws_route_table" "private" {
   }
 }
 
-resource "aws_route_table_association" "private" {
+resource "aws_route_table_association" "private_a" {
   subnet_id      = aws_subnet.private.id
+  route_table_id = aws_route_table.private.id
+}
+
+resource "aws_route_table_association" "private_b" {
+  subnet_id      = aws_subnet.private_b.id
   route_table_id = aws_route_table.private.id
 }
 
