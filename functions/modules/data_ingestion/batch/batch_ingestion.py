@@ -87,7 +87,7 @@ def lambda_handler(event=None, context=None):
         conn.close()
         print("\n✅ All tables attempted.")
 
-    # 🆕 Write log to aligned path with date/hour
+    # 🆕 Write log to aligned path with date/hour d
     try:
         log_data = "\n".join(log_lines)
         log_key = f"{log_prefix}/{date_path}/{hhmm_path}/lambda_log.txt"

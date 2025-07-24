@@ -16,7 +16,7 @@ def random_order(order_id):
         "order_hour_of_day": random.randint(0, 23),
         "days_since_prior": random.choice([random.randint(1, 10000), None])
     }
-
+ 
 def lambda_handler(event, context):
     kinesis = boto3.client("kinesis")
     records = []

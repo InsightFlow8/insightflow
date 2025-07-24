@@ -8,12 +8,12 @@ variable "db_name" {
   type        = string
 }
 
-variable "rds_db_username" {
+variable "db_username" {
   description = "Master username for PostgreSQL"
   type        = string
 }
 
-variable "rds_db_password" {
+variable "db_password" {
   description = "Master password for PostgreSQL"
   type        = string
   sensitive   = true

@@ -1,3 +1,11 @@
-
 # Ignore environment files
 functions/modules/prerequisite_snowflake_data_upstream_load/.env
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+.terraform.lock.hcl
+
+# Local test files
+test.txt

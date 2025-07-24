@@ -13,7 +13,7 @@ aws s3 ls s3://insightflow-raw-bucket/
 # 检查 AWS 凭证
 aws sts get-caller-identity
 
-# 重新创建 bucket（如果需要）
+# 重新创建 bucket（如果需要）.
 terraform apply -target=module.s3_buckets
 ```
 

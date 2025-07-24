@@ -1,6 +1,6 @@
 -- This file needs to be uploaded to the S3 bucket:
 
--- All pk and fk constraints are commented out to allow for easier data loading and data sync.
+-- All pk and fk constraints are commented out to allow for easier data loading and data sync..
 
 -- Create the schema for the raw-data bucket
 CREATE SCHEMA IF NOT EXISTS insightflow_raw;

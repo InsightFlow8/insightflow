@@ -1,5 +1,5 @@
 # main.tf
-# 顶层 Terraform 入口，包含 provider 配置与 module 加载
+# 顶层 Terraform 入口，包含 provider 配置与 module 加载.
 
 provider "aws" {
   region = var.aws_region
@@ -14,9 +14,12 @@ module "s3_buckets" {
 }
 
 module "vpc" {
-  source            = "../modules/vpc"
-  github_repository = "Tobby-Guo/insightflow"
-  bucket_name       = "insightflow-imba-group-state-tobby"
+  source               = "../modules/vpc"
+  env                  = "insightflow_dev"
+  vpc_cidr_block       = "10.0.0.0/16"
+  public_subnet_cidrs  = ["10.0.1.0/24", "10.0.2.0/24"]
+  private_subnet_cidrs = ["10.0.3.0/24", "10.0.4.0/24"]
+  region               = var.aws_region
 }
 
 
@@ -101,8 +104,8 @@ module "rds_postgresql" {
   env    = "insightflow-dev"
 
   db_name                     = var.db_name
-  rds_db_username             = var.db_username
-  rds_db_password             = var.db_password
+  db_username                 = var.db_username
+  db_password                 = var.db_password
   private_subnet_ids          = module.vpc.private_subnet_ids
   postgres_security_group_ids = [module.vpc.postgres_security_group_id]
   depends_on                  = [module.vpc]

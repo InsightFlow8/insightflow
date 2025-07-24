@@ -70,7 +70,7 @@ chmod +x validate_terraform.sh
 # 检查 AWS CLI 安装
 aws --version
 
-# 检查 AWS 凭证
+# 检查 AWS 凭证 .
 aws sts get-caller-identity
 
 # 重新配置 AWS

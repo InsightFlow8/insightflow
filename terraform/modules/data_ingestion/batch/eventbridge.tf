@@ -1,4 +1,4 @@
-# resource of EventBridge Trigger to batch ingestion Lambda function
+# resource of EventBridge Trigger to batch ingestion Lambda function.
 
 resource "aws_cloudwatch_event_rule" "batch_ingestion_trigger" {
   name                = var.eventbridge_rule_name

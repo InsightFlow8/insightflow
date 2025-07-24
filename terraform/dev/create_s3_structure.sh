@@ -5,7 +5,7 @@
 # PURPOSE:
 # - Glue Crawlers validate S3 target paths during creation
 # - Empty or non-existent paths cause deployment failures
-# - This script pre-creates directory structure with placeholder files
+# - This script pre-creates directory structure with placeholder files.
 # - Placeholder files will be overwritten when real data is uploaded
 #
 # USAGE:

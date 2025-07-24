@@ -119,3 +119,4 @@ resource "aws_iam_role_policy" "streaming_transformer_lambda_policy" {
     ]
   })
 }
+# IAM roles and policies for the streaming ingestion module

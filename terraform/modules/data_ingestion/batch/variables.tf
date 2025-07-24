@@ -1,5 +1,5 @@
 # modules/data_ingestion/batch/variables.tf
-# 本模块接收的变量，用于配置 Lambda + EventBridge + Snowflake + Crawler
+# 本模块接收的变量，用于配置 Lambda + EventBridge + Snowflake + Crawler 等资源
 
 variable "lambda_zip_path" {
   description = "Path to the Lambda deployment package zip file"

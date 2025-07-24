@@ -15,7 +15,7 @@ def transform_record(record):
     elif days > 30:
         days = 30
     data["days_since_prior"] = days
-    # 新增 eval_set
+    # 新增 eval_set d
     data["eval_set"] = "dummy streaming"
     # 调整字段顺序
     ordered = {

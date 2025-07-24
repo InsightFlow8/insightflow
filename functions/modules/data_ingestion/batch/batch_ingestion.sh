@@ -5,7 +5,7 @@ set -e
 rm -rf batch_ingestion_lambda
 mkdir batch_ingestion_lambda
 
-# Step 2: Install dependencies into build directory
+# Step 2: Install dependencies into build directory d
 pip install snowflake-connector-python boto3 python-dotenv -t batch_ingestion_lambda
 
 # Step 3: Copy Lambda function code into build directory

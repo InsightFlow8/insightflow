@@ -44,3 +44,4 @@ resource "aws_iam_role_policy" "batch_ingestion_lambda_policy" {
     ]
   })
 }
+# IAM role for the batch ingestion Lambda function

@@ -1,4 +1,4 @@
-# resource of lambda function of batch ingestion
+# resource of lambda function of batch ingestion module.
 
 resource "aws_lambda_function" "batch_ingestion" {
   function_name    = var.lambda_function_name

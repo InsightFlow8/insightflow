@@ -8,7 +8,7 @@ resource "aws_kinesis_firehose_delivery_stream" "streaming_firehose" {
     role_arn           = aws_iam_role.firehose_role.arn
   }
 
-  # 必须是extended_s3，Gemini查询得到，GPT无法给到正确回答
+  # 必须是extended_s3，Gemini查询得到，GPT无法给到正确回答  .
   extended_s3_configuration {
     role_arn           = aws_iam_role.firehose_role.arn
     bucket_arn         = "arn:aws:s3:::${var.raw_bucket}"

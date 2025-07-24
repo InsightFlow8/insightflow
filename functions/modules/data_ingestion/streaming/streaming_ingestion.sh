@@ -8,7 +8,7 @@ set -e
 rm -rf streaming_lambda_build
 mkdir streaming_lambda_build
 
-# Step 2: Copy Lambda function代码到build目录
+# Step 2: Copy Lambda function代码到build目录d
 cp streaming_data_publisher.py streaming_lambda_build/streaming_data_publisher.py   # Need to keep the name consistent with the handler in Terraform
 
 # Step 3: 打包为zip，存入terraform/assets/
