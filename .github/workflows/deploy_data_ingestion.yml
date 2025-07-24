@@ -106,9 +106,6 @@ jobs:
             echo "DynamoDB table is active."
           fi
 
-      - name: List S3 Bucket Contents (Debug)
-        run: aws s3 ls s3://insightflow-imba-group-state-tobby/
-
       - name: Terraform Init
         run: terraform init
         working-directory: terraform/dev
