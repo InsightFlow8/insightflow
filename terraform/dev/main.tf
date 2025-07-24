@@ -144,8 +144,8 @@ module "data_sync_raw" {
   rds_host     = module.rds_postgresql.rds_host
   rds_port     = module.rds_postgresql.rds_port
   rds_db       = var.db_name
-  rds_user     = var.db_username
-  rds_password = var.db_password
+  rds_user     = var.rds_db_username
+  rds_password = var.rds_db_password
 
   table_name  = var.table_name
   schema_name = "insightflow_raw"
