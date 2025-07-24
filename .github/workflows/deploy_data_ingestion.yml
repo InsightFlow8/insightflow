@@ -106,6 +106,17 @@ jobs:
             echo "DynamoDB table is active."
           fi
 
+      - name: Clean Terraform State (Force)
+        run: |
+          BUCKET_NAME="insightflow-imba-group-state-tobby"
+          TABLE_NAME="insightflow_imba_group"
+          AWS_REGION="ap-southeast-2"
+          echo "Attempting to delete state/terraform.tfstate from S3..."
+          aws s3 rm s3://$BUCKET_NAME/state/terraform.tfstate --region $AWS_REGION || true
+          echo "Attempting to delete all items from DynamoDB table $TABLE_NAME..."
+          aws dynamodb scan --table-name $TABLE_NAME --region $AWS_REGION --query "Items[*].LockID.S" --output text | xargs -I {} aws dynamodb delete-item --table-name $TABLE_NAME --region $AWS_REGION --key "{\"LockID\":{\"S\":\"{}\"}}" || true
+          echo "Clean-up complete."
+
       - name: Terraform Init
         run: terraform init -reconfigure
         working-directory: terraform/dev
