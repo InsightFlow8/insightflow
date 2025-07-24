@@ -14,9 +14,9 @@ module "s3_buckets" {
 }
 
 module "vpc" {
-  source               = "../modules/vpc"
-  github_repository    = "Tobby-Guo/insightflow"
-  bucket_name          = "insightflow-imba-group-state"
+  source            = "../modules/vpc"
+  github_repository = "Tobby-Guo/insightflow"
+  bucket_name       = "insightflow-imba-group-state"
 }
 
 
