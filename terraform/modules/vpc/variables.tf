@@ -1,12 +1,9 @@
-variable "env" {}
-variable "vpc_cidr_block" {}
-variable "public_subnet_cidrs" {
-  type = list(string)
-}
-variable "private_subnet_cidrs" {
-  type = list(string)
+variable "github_repository" {
+  description = "The GitHub repository name"
+  type        = string
 }
 
-variable "region" {
-
+variable "bucket_name" {
+  description = "The name of the S3 bucket"
+  type        = string
 }
