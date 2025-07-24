@@ -107,7 +107,7 @@ jobs:
           fi
 
       - name: Terraform Init
-        run: terraform init
+        run: terraform init -reconfigure
         working-directory: terraform/dev
       
       - name: Terraform Format Check
