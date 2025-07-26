@@ -94,7 +94,7 @@ module "ec2" {
   db_name      = var.db_name
   db_username  = var.db_username
   db_password  = var.db_password
-  sql_s3_path  = "s3://insightflow-imba-scripts/create_tables.sql"
+  sql_s3_path  = "s3://insightflow-imba-scripts-upload/rds-postgresql/create_tables.sql"
 
   depends_on = [module.vpc, module.rds_postgresql]
 }
