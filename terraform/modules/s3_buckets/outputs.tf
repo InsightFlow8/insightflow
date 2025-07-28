@@ -6,7 +6,6 @@ output "bucket_ids" {
   ]
 }
 
-
 output "bucket_arns" {
   description = "ARNs of the created S3 buckets in input order"
   value = [
@@ -20,3 +19,12 @@ output "raw_bucket_arn" {
   value       = aws_s3_bucket.buckets[var.raw_bucket].arn
 }
 
+output "clean_bucket_arn" {
+  description = "ARN of the clean S3 bucket"
+  value       = aws_s3_bucket.buckets[var.clean_bucket].arn
+}
+
+output "curated_bucket_arn" {
+  description = "ARN of the curated S3 bucket"
+  value       = aws_s3_bucket.buckets[var.curated_bucket].arn
+}

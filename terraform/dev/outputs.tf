@@ -38,3 +38,54 @@ output "glue_table_names" {
   description = "Expected table names in the Glue catalog"
   value       = module.glue_crawler_raw.table_names
 }
+
+# =============================
+# ETL Data Clean Outputs
+# =============================
+output "etl_glue_job_name" {
+  description = "Name of the ETL Data Clean Glue Job"
+  value       = module.etl_data_clean.glue_job_name
+}
+
+output "etl_glue_job_arn" {
+  description = "ARN of the ETL Data Clean Glue Job"
+  value       = module.etl_data_clean.glue_job_arn
+}
+
+output "etl_iam_role_arn" {
+  description = "ARN of the IAM Role for ETL Data Clean Glue Job"
+  value       = module.etl_data_clean.iam_role_arn
+}
+
+output "etl_iam_role_name" {
+  description = "Name of the IAM Role for ETL Data Clean Glue Job"
+  value       = module.etl_data_clean.iam_role_name
+}
+
+# =============================
+# ETL Table Combine Outputs
+# =============================
+output "table_combine_glue_job_name" {
+  description = "Name of the ETL Table Combine Glue Job"
+  value       = module.etl_table_combine.glue_job_name
+}
+
+output "table_combine_glue_job_arn" {
+  description = "ARN of the ETL Table Combine Glue Job"
+  value       = module.etl_table_combine.glue_job_arn
+}
+
+output "table_combine_iam_role_arn" {
+  description = "ARN of the IAM Role for ETL Table Combine Glue Job"
+  value       = module.etl_table_combine.iam_role_arn
+}
+
+output "table_combine_iam_role_name" {
+  description = "Name of the IAM Role for ETL Table Combine Glue Job"
+  value       = module.etl_table_combine.iam_role_name
+}
+
+output "table_combine_output_path" {
+  description = "S3 path for the combined table output"
+  value       = var.table_combine_output_path
+}

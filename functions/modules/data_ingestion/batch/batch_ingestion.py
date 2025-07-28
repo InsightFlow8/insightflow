@@ -14,7 +14,7 @@ def lambda_handler(event=None, context=None):
     default_tables = ["AISLES", "DEPARTMENTS", "PRODUCTS", "ORDERS", "ORDER_PRODUCTS_PRIOR", "ORDER_PRODUCTS_TRAIN"]
     database = "INSIGHTFLOW_IMBA"   # Snowflake database name, adjust as needed
     schema = "PUBLIC"   # Snowflake schema name, adjust as needed
-    bucket = "insightflow-raw-bucket" # S3 bucket name, adjust as needed
+    bucket = "insightflow-dev-raw-bucket" # S3 bucket name, adjust as needed
     base_prefix = "data/batch"
     log_prefix = "logs/batch"
     PAGE_SIZE = 1_000_000

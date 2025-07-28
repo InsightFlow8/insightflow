@@ -1,0 +1,70 @@
+name: Deploy ETL Scripts and Infrastructure
+
+on:
+  push:
+    branches: [ main, dev ]
+    paths:
+      - 'functions/modules/ETL/**'
+      - 'terraform/**'
+  pull_request:
+    branches: [ main ]
+
+env:
+  AWS_REGION: ap-southeast-2
+  SCRIPTS_BUCKET: insightflow-dev-scripts
+
+jobs:
+  deploy-scripts:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v2
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+
+    - name: Upload ETL Scripts to S3
+      run: |
+        # 上传 ETL 脚本
+        aws s3 cp functions/modules/ETL/data_clean/ETL_data_clean.py \
+          s3://${{ env.SCRIPTS_BUCKET }}/ETL/data_clean/
+        
+        # 验证上传
+        aws s3 ls s3://${{ env.SCRIPTS_BUCKET }}/ETL/data_clean/
+
+  deploy-infrastructure:
+    needs: deploy-scripts
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: terraform/dev
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v2
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v2
+      with:
+        terraform_version: 1.5.0
+
+    - name: Terraform Init
+      run: terraform init
+
+    - name: Terraform Plan
+      run: terraform plan
+
+    - name: Terraform Apply
+      if: github.ref == 'refs/heads/main'
+      run: terraform apply -auto-approve

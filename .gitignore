@@ -6,6 +6,11 @@ functions/modules/prerequisite_snowflake_data_upstream_load/.env
 *.tfstate
 *.tfstate.*
 .terraform.lock.hcl
+*.tfvars
+terraform/dev/*.sh
 
 # Local test files
 test.txt
+
+# in-process Python packages
+**/batch_ingestion_lambda/

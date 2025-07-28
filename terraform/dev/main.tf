@@ -8,9 +8,12 @@ provider "aws" {
 data "aws_caller_identity" "current" {}
 
 module "s3_buckets" {
-  source       = "../modules/s3_buckets"
-  bucket_names = [var.raw_bucket, var.clean_bucket]
-  raw_bucket   = var.raw_bucket
+  source         = "../modules/s3_buckets"
+  bucket_names   = [var.raw_bucket, var.clean_bucket, var.curated_bucket, var.scripts_bucket]
+  raw_bucket     = var.raw_bucket
+  clean_bucket   = var.clean_bucket
+  curated_bucket = var.curated_bucket
+  scripts_bucket = var.scripts_bucket
 }
 
 module "vpc" {
@@ -181,3 +184,83 @@ module "data_sync_raw" {
 #   
 #   # Will be updated with new parameters for Glue Data Catalog integration
 # }
+
+# =============================
+# ETL Data Clean Module
+# =============================
+module "etl_data_clean" {
+  source = "../modules/ETL/data_clean"
+
+  # Job Configuration
+  job_name        = var.etl_job_name
+  iam_role_name   = var.etl_iam_role_name
+  script_location = var.etl_script_location
+  temp_dir        = var.etl_temp_dir
+  scripts_bucket  = var.scripts_bucket
+
+  # Input S3 Paths
+  aisles_path               = var.aisles_input_path
+  departments_path          = var.departments_input_path
+  products_path             = var.products_input_path
+  orders_path               = var.orders_input_path
+  order_products_prior_path = var.order_products_prior_input_path
+  order_products_train_path = var.order_products_train_input_path
+
+  # Output S3 Paths
+  aisles_out               = var.aisles_output_path
+  departments_out          = var.departments_output_path
+  products_out             = var.products_output_path
+  orders_out               = var.orders_output_path
+  order_products_prior_out = var.order_products_prior_output_path
+  order_products_train_out = var.order_products_train_output_path
+
+  # Glue Configuration
+  glue_version      = var.etl_glue_version
+  number_of_workers = var.etl_number_of_workers
+  worker_type       = var.etl_worker_type
+
+  tags = {
+    Project     = "InsightFlow"
+    Environment = "dev"
+    Component   = "etl-data-clean"
+  }
+
+  depends_on = [module.s3_buckets]
+}
+
+# =============================
+# ETL Table Combine Module
+# =============================
+module "etl_table_combine" {
+  source = "../modules/ETL/table_combine"
+
+  # Job Configuration
+  job_name       = var.table_combine_job_name
+  iam_role_name  = var.table_combine_iam_role_name
+  temp_dir       = var.etl_temp_dir
+  scripts_bucket = var.scripts_bucket
+
+  # Input S3 Paths (from data_clean stage)
+  aisles_path               = var.aisles_output_path
+  departments_path          = var.departments_output_path
+  products_path             = var.products_output_path
+  orders_path               = var.orders_output_path
+  order_products_prior_path = var.order_products_prior_output_path
+  order_products_train_path = var.order_products_train_output_path
+
+  # Output S3 Path
+  output_path = var.table_combine_output_path
+
+  # Glue Configuration
+  glue_version      = var.etl_glue_version
+  number_of_workers = var.etl_number_of_workers
+  worker_type       = var.etl_worker_type
+
+  tags = {
+    Project     = "InsightFlow"
+    Environment = "dev"
+    Component   = "etl-table-combine"
+  }
+
+  depends_on = [module.s3_buckets, module.etl_data_clean]
+}

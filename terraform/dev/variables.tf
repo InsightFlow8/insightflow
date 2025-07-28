@@ -40,6 +40,17 @@ variable "clean_bucket" {
   type        = string
 }
 
+variable "curated_bucket" {
+  description = "S3 bucket for curated data"
+  type        = string
+}
+
+variable "scripts_bucket" {
+  description = "S3 bucket for scripts and assets"
+  type        = string
+  default     = "insightflow-dev-scripts"
+}
+
 # EC2
 variable "ami_id" {}
 variable "instance_type" {}
@@ -154,3 +165,130 @@ variable "end_ts" {
 #   type        = string
 #   default     = "100000"
 # }
+
+# =============================
+# ETL Data Clean Variables
+# =============================
+variable "etl_job_name" {
+  description = "Name of the ETL Data Clean Glue Job"
+  type        = string
+  default     = "insightflow-data-clean-job"
+}
+
+variable "etl_iam_role_name" {
+  description = "Name of the IAM Role for ETL Data Clean Glue Job"
+  type        = string
+  default     = "insightflow-glue-data-clean-role"
+}
+
+variable "etl_script_location" {
+  description = "S3 path to the ETL PySpark script"
+  type        = string
+}
+
+variable "etl_temp_dir" {
+  description = "S3 temp directory for Glue Job"
+  type        = string
+}
+
+# Input S3 Paths
+variable "aisles_input_path" {
+  description = "S3 input path for aisles table"
+  type        = string
+}
+
+variable "departments_input_path" {
+  description = "S3 input path for departments table"
+  type        = string
+}
+
+variable "products_input_path" {
+  description = "S3 input path for products table"
+  type        = string
+}
+
+variable "orders_input_path" {
+  description = "S3 input path for orders table"
+  type        = string
+}
+
+variable "order_products_prior_input_path" {
+  description = "S3 input path for order_products_prior table"
+  type        = string
+}
+
+variable "order_products_train_input_path" {
+  description = "S3 input path for order_products_train table"
+  type        = string
+}
+
+# Output S3 Paths
+variable "aisles_output_path" {
+  description = "S3 output path for cleaned aisles table"
+  type        = string
+}
+
+variable "departments_output_path" {
+  description = "S3 output path for cleaned departments table"
+  type        = string
+}
+
+variable "products_output_path" {
+  description = "S3 output path for cleaned products table"
+  type        = string
+}
+
+variable "orders_output_path" {
+  description = "S3 output path for cleaned orders table"
+  type        = string
+}
+
+variable "order_products_prior_output_path" {
+  description = "S3 output path for cleaned order_products_prior table"
+  type        = string
+}
+
+variable "order_products_train_output_path" {
+  description = "S3 output path for cleaned order_products_train table"
+  type        = string
+}
+
+# Glue Configuration
+variable "etl_glue_version" {
+  description = "Glue version for ETL job"
+  type        = string
+  default     = "4.0"
+}
+
+variable "etl_number_of_workers" {
+  description = "Number of workers for ETL Glue Job"
+  type        = number
+  default     = 5
+}
+
+variable "etl_worker_type" {
+  description = "Worker type for ETL Glue Job"
+  type        = string
+  default     = "G.1X"
+}
+
+# =============================
+# ETL Table Combine Variables
+# =============================
+variable "table_combine_job_name" {
+  description = "Name for the table combine Glue Job"
+  type        = string
+  default     = "insightflow-table-combine-job"
+}
+
+variable "table_combine_iam_role_name" {
+  description = "IAM role name for table combine Glue Job"
+  type        = string
+  default     = "insightflow-glue-table-combine-role"
+}
+
+variable "table_combine_output_path" {
+  description = "S3 path for combined table output"
+  type        = string
+  default     = "s3://insightflow-dev-clean-bucket/combined/"
+}
