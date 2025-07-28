@@ -136,6 +136,16 @@ jobs:
             cd terraform/dev
             terraform apply -auto-approve -target=module.ec2
       
+      # --- Glue Tables ---
+      - name: Terraform Plan (Glue Tables Only)
+        run: terraform plan -input=false -target=module.glue_tables
+        working-directory: terraform/dev
+
+      - name: Terraform Apply (Glue Tables Only)
+        run: |
+          cd terraform/dev
+          terraform apply -auto-approve -target=module.glue_tables
+      
       # --- Batch Ingestion ---
       - name: Terraform Plan (Batch Ingestion Only)
         run: terraform plan -input=false -target=module.batch_ingestion
@@ -166,20 +176,20 @@ jobs:
       #       cd terraform/dev
       #       terraform apply -auto-approve -target=module.streaming_ingestion
 
-      # --- Glue Crawler Raw ---
-      - name: Terraform Plan (Glue Crawler Raw Only)
-        run: terraform plan -input=false -target=module.glue_crawler_raw
-        working-directory: terraform/dev
+      # # --- Glue Crawler Raw ---
+      # - name: Terraform Plan (Glue Crawler Raw Only)
+      #   run: terraform plan -input=false -target=module.glue_crawler_raw
+      #   working-directory: terraform/dev
 
-      - name: Terraform Apply (Glue Crawler Raw Only) with Retry
-        uses: nick-fields/retry@v3
-        with:
-          timeout_minutes: 15
-          max_attempts: 3
-          retry_wait_seconds: 60
-          command: |
-            cd terraform/dev
-            terraform apply -auto-approve -target=module.glue_crawler_raw
+      # - name: Terraform Apply (Glue Crawler Raw Only) with Retry
+      #   uses: nick-fields/retry@v3
+      #   with:
+      #     timeout_minutes: 15
+      #     max_attempts: 3
+      #     retry_wait_seconds: 60
+      #     command: |
+      #       cd terraform/dev
+      #       terraform apply -auto-approve -target=module.glue_crawler_raw
 
       # --- Data Sync Raw ---
       - name: Terraform Plan (Data Sync Raw Only)
