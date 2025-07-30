@@ -11,3 +11,8 @@ terraform/dev/*.sh
 
 # Local test files
 test.txt
+
+.DS_Store
+
+# in-process Python packages
+**/batch_ingestion_lambda/
