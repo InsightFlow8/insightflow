@@ -6,6 +6,9 @@ functions/modules/prerequisite_snowflake_data_upstream_load/.env
 *.tfstate
 *.tfstate.*
 .terraform.lock.hcl
+*.tfvars
 
 # Local test files
 test.txt
+
+.DS_Store

@@ -1,19 +1,4 @@
-# =============================
-# 简化版增量爬取 AWS Glue Crawlers 
-# 专注于核心增量功能，去除复杂配置
-# =============================
 
-# Glue Catalog Database
-resource "aws_glue_catalog_database" "raw_data_catalog" {
-  name        = var.database_name
-  description = "简化版原始数据目录 - 支持增量爬取"
-
-  tags = merge(var.tags, {
-    Name        = var.database_name
-    Environment = var.env
-    Purpose     = "SimpleIncrementalCrawling"
-  })
-}
 
 # =============================
 # 简化版增量爬虫 - 只保留核心功能

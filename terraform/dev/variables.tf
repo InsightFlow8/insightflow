@@ -154,3 +154,8 @@ variable "end_ts" {
 #   type        = string
 #   default     = "100000"
 # }
+
+variable "snowflake_secret_name" {
+  description = "Snowflake secret name"
+  type        = string
+}
