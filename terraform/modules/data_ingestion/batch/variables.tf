@@ -52,29 +52,8 @@ variable "eventbridge_schedule_expression" {
   type        = string
 }
 
-variable "snowflake_user" {
-  description = "Snowflake user for Lambda environment"
-  type        = string
-}
-
-variable "snowflake_password" {
-  description = "Snowflake password for Lambda environment"
-  type        = string
-  sensitive   = true
-}
-
-variable "snowflake_account" {
-  description = "Snowflake account identifier"
-  type        = string
-}
-
-variable "snowflake_warehouse" {
-  description = "Snowflake warehouse name"
-  type        = string
-}
-
-variable "snowflake_role" {
-  description = "Snowflake role"
+variable "snowflake_secret_name" {
+  description = "Snowflake secret name"
   type        = string
 }
 
@@ -90,5 +69,15 @@ variable "raw_bucket" {
 
 variable "clean_bucket" {
   description = "S3 bucket for clean data"
+  type        = string
+}
+
+variable "raw_database_arn" {
+  description = "ARN of the Glue catalog database for raw data"
+  type        = string
+}
+
+variable "raw_database_name" {
+  description = "Name of the Glue catalog database for raw data"
   type        = string
 }

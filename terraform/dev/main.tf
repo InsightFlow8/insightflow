@@ -25,6 +25,16 @@ module "vpc" {
   region               = var.aws_region
 }
 
+# Glue Tables
+module "glue_tables" {
+  source = "../modules/glue_tables"
+
+  env                = "insightflow_dev"
+  s3_raw_bucket_name = var.raw_bucket
+  s3_raw_data_prefix = var.raw_prefix
+  raw_database_name  = "insightflow_imba_raw_data_catalog"
+  depends_on         = [module.s3_buckets]
+}
 
 module "batch_ingestion" {
   source = "../modules/data_ingestion/batch"
@@ -42,18 +52,17 @@ module "batch_ingestion" {
   eventbridge_schedule_expression = "cron(0 14 30 * ? *)"
   # 根据最后的项目需求调整
 
-  snowflake_user      = var.snowflake_user
-  snowflake_password  = var.snowflake_password
-  snowflake_account   = var.snowflake_account
-  snowflake_warehouse = var.snowflake_warehouse
-  snowflake_role      = var.snowflake_role
 
-  aws_region   = var.aws_region
-  raw_bucket   = var.raw_bucket
-  clean_bucket = var.clean_bucket
+  snowflake_secret_name = var.snowflake_secret_name
+
+  aws_region        = var.aws_region
+  raw_bucket        = var.raw_bucket
+  clean_bucket      = var.clean_bucket
+  raw_database_arn  = module.glue_tables.raw_database_arn
+  raw_database_name = module.glue_tables.raw_database_name
 
   # 确保 S3 bucket 相关资源先于数据采集模块创建
-  depends_on = [module.s3_buckets]
+  depends_on = [module.s3_buckets, module.glue_tables]
 }
 
 module "streaming_ingestion" {
@@ -117,28 +126,30 @@ module "rds_postgresql" {
 # =============================
 # Glue Crawler for Raw Data
 # =============================
-module "glue_crawler_raw" {
-  source = "../modules/glue_crawler_raw"
+# module "glue_crawler_raw" {
+#   source = "../modules/glue_crawler_raw"
 
-  env                = "insightflow_dev"
-  s3_bucket_name     = var.raw_bucket
-  s3_raw_data_prefix = var.raw_prefix
-  database_name      = "insightflow_imba_raw_data_catalog"
-  table_prefix       = "raw_"
-  recrawl_behavior   = var.recrawl_behavior
+#   env                = "insightflow_dev"
+#   s3_bucket_name     = var.raw_bucket
+#   s3_raw_data_prefix = var.raw_prefix
+#   database_name      = "insightflow_imba_raw_data_catalog"
+#   table_prefix       = "raw_"
+#   recrawl_behavior   = var.recrawl_behavior
 
-  # 使用变量设置爬虫调度，而不是硬编码
-  crawler_schedule = var.crawler_schedule
+#   # 使用变量设置爬虫调度，而不是硬编码
+#   crawler_schedule = var.crawler_schedule
 
-  tags = {
-    Project     = "InsightFlow"
-    Environment = "insightflow_dev"
-    Owner       = "IMBADataTeam"
-    Purpose     = "RawDataCrawling"
-  }
+#   tags = {
+#     Project     = "InsightFlow"
+#     Environment = "insightflow_dev"
+#     Owner       = "IMBADataTeam"
+#     Purpose     = "RawDataCrawling"
+#   }
 
-  depends_on = [module.s3_buckets]
-}
+#   depends_on = [module.s3_buckets]
+# }
+
+
 
 module "data_sync_raw" {
   source = "../modules/data_sync/raw"
@@ -184,6 +195,7 @@ module "data_sync_raw" {
 #   
 #   # Will be updated with new parameters for Glue Data Catalog integration
 # }
+
 
 # =============================
 # ETL Data Clean Module

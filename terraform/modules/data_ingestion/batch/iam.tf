@@ -40,6 +40,30 @@ resource "aws_iam_role_policy" "batch_ingestion_lambda_policy" {
           "arn:aws:s3:::${var.clean_bucket}",
           "arn:aws:s3:::${var.clean_bucket}/*"
         ]
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "secretsmanager:GetSecretValue"
+        ]
+        Resource = [
+          "arn:aws:secretsmanager:${var.aws_region}:*:secret:snowflake-insightflow*"
+        ]
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "glue:CreatePartition",
+          "glue:GetPartition",
+          "glue:GetTable",
+          "glue:GetDatabase",
+          "glue:BatchGetPartition"
+        ]
+        Resource = [
+          "arn:aws:glue:${var.aws_region}:*:catalog",
+          var.raw_database_arn,
+          "arn:aws:glue:${var.aws_region}:*:table/${var.raw_database_name}/*"
+        ]
       }
     ]
   })

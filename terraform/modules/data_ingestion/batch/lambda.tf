@@ -12,13 +12,9 @@ resource "aws_lambda_function" "batch_ingestion" {
 
   environment {
     variables = {
-      SNOWFLAKE_USER      = var.snowflake_user
-      SNOWFLAKE_PASSWORD  = var.snowflake_password
-      SNOWFLAKE_ACCOUNT   = var.snowflake_account
-      SNOWFLAKE_WAREHOUSE = var.snowflake_warehouse
-      SNOWFLAKE_ROLE      = var.snowflake_role
-      RAW_BUCKET          = var.raw_bucket
-      CLEAN_BUCKET        = var.clean_bucket
+      SNOWFLAKE_SECRET_NAME = var.snowflake_secret_name
+      RAW_BUCKET            = var.raw_bucket
+      CLEAN_BUCKET          = var.clean_bucket
     }
   }
 }

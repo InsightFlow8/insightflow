@@ -292,3 +292,8 @@ variable "table_combine_output_path" {
   type        = string
   default     = "s3://insightflow-dev-clean-bucket/combined/"
 }
+
+variable "snowflake_secret_name" {
+  description = "Snowflake secret name"
+  type        = string
+}
