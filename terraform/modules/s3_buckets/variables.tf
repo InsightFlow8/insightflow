@@ -13,17 +13,17 @@ variable "curated_bucket" {
   type        = string
 }
 
-variable "scripts_bucket" {
-  description = "Name of the S3 bucket for scripts and assets"
-  type        = string
-  default     = "insightflow-dev-scripts"
-}
+# variable "scripts_bucket" {
+#   description = "Name of the S3 bucket for scripts and assets"
+#   type        = string
+#   default     = "insightflow-dev-scripts"
+# }
 
 variable "bucket_names" {
-  description = "List of four S3 bucket names"
+  description = "List of three S3 bucket names"
   type        = list(string)
   validation {
-    condition     = length(var.bucket_names) == 4
-    error_message = "You must provide exactly four bucket names."
+    condition     = length(var.bucket_names) == 3
+    error_message = "You must provide exactly three bucket names."
   }
 }

@@ -15,6 +15,8 @@ cp batch_ingestion.py batch_ingestion_lambda/lambda_function.py   # Need to rena
 cd batch_ingestion_lambda
 zip -r ../../../../../terraform/assets/batch_ingestion_lambda.zip .
 cd .. 
+rm -rf batch_ingestion_lambda   # Clean up the build directory after zipping
+echo "✅ Batch ingestion Lambda has been removed from the build directory."
 cd ..
 
 echo "✅ Lambda deployment package created: terraform/assets/batch_ingestion_lambda.zip"

@@ -8,6 +8,7 @@ functions/modules/prerequisite_snowflake_data_upstream_load/.env
 .terraform.lock.hcl
 *.tfvars
 terraform/dev/*.sh
+terraform/dev/*.md
 
 # Local test files
 test.txt

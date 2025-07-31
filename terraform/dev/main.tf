@@ -9,11 +9,11 @@ data "aws_caller_identity" "current" {}
 
 module "s3_buckets" {
   source         = "../modules/s3_buckets"
-  bucket_names   = [var.raw_bucket, var.clean_bucket, var.curated_bucket, var.scripts_bucket]
+  bucket_names   = [var.raw_bucket, var.clean_bucket, var.curated_bucket]
   raw_bucket     = var.raw_bucket
   clean_bucket   = var.clean_bucket
   curated_bucket = var.curated_bucket
-  scripts_bucket = var.scripts_bucket
+  # scripts_bucket = var.scripts_bucket
 }
 
 module "vpc" {
@@ -34,6 +34,25 @@ module "glue_tables" {
   s3_raw_data_prefix = var.raw_prefix
   raw_database_name  = "insightflow_imba_raw_data_catalog"
   depends_on         = [module.s3_buckets]
+}
+
+# Glue Tables ETL
+module "glue_tables_etl" {
+  source = "../modules/glue_tables_etl"
+  
+  clean_database_name      = "insightflow_imba_clean_data_catalog"
+  s3_clean_bucket_name     = var.clean_bucket
+  after_clean_table_prefix = "after_clean_"
+  env                      = "insightflow_dev"
+  
+  tags = {
+    Project     = "InsightFlow"
+    Environment = "insightflow_dev"
+    Owner       = "IMBADataTeam"
+    Purpose     = "ETLCleanDataCatalog"
+  }
+  
+  depends_on = [module.s3_buckets]
 }
 
 module "batch_ingestion" {
@@ -77,7 +96,7 @@ module "streaming_ingestion" {
   publisher_timeout       = 60
 
   firehose_name             = "insightflow-dummy-firehose"
-  raw_bucket                = "insightflow-raw-bucket"
+  raw_bucket                = var.raw_bucket
   transformer_function_name = "streaming_data_transformer"
   transformer_zip_path      = "../assets/streaming_data_transformer.zip"
   transformer_handler       = "streaming_data_transformer.lambda_handler"
@@ -106,7 +125,7 @@ module "ec2" {
   db_name      = var.db_name
   db_username  = var.db_username
   db_password  = var.db_password
-  sql_s3_path  = "s3://insightflow-imba-scripts-upload/rds-postgresql/create_tables.sql"
+  sql_s3_path  = "s3://insightflow-dev-scripts-bucket/rds-postgresql/create_tables.sql"
 
   depends_on = [module.vpc, module.rds_postgresql]
 }
@@ -151,37 +170,37 @@ module "rds_postgresql" {
 
 
 
-module "data_sync_raw" {
-  source = "../modules/data_sync/raw"
+# module "data_sync_raw" {
+#   source = "../modules/data_sync/raw"
 
-  lambda_zip_path = "../assets/lambda_s3_to_rds_raw.zip"
-  s3_bucket_name  = var.raw_bucket
-  s3_bucket_arn   = module.s3_buckets.raw_bucket_arn
+#   lambda_zip_path = "../assets/lambda_s3_to_rds_raw.zip"
+#   s3_bucket_name  = var.raw_bucket
+#   s3_bucket_arn   = module.s3_buckets.raw_bucket_arn
 
-  rds_host     = module.rds_postgresql.rds_host
-  rds_port     = module.rds_postgresql.rds_port
-  rds_db       = var.db_name
-  rds_user     = var.db_username
-  rds_password = var.db_password
+#   rds_host     = module.rds_postgresql.rds_host
+#   rds_port     = module.rds_postgresql.rds_port
+#   rds_db       = var.db_name
+#   rds_user     = var.db_username
+#   rds_password = var.db_password
 
-  table_name  = var.table_name
-  schema_name = "insightflow_raw"
+#   table_name  = var.table_name
+#   schema_name = "insightflow_raw"
 
-  # NOTE: batch_size cannot be too large otherwise it will exceed the limit of RDS connection.
-  batch_size = "10000"
+#   # NOTE: batch_size cannot be too large otherwise it will exceed the limit of RDS connection.
+#   batch_size = "10000"
 
-  s3_key_prefix = var.s3_key_prefix
-  start_ts      = var.start_ts
-  end_ts        = var.end_ts
+#   s3_key_prefix = var.s3_key_prefix
+#   start_ts      = var.start_ts
+#   end_ts        = var.end_ts
 
 
-  eventbridge_schedule = var.eventbridge_schedule
+#   eventbridge_schedule = var.eventbridge_schedule
 
-  private_subnet_ids       = module.vpc.private_subnet_ids
-  lambda_security_group_id = module.vpc.lambda_sync_raw_security_group_id
+#   private_subnet_ids       = module.vpc.private_subnet_ids
+#   lambda_security_group_id = module.vpc.lambda_sync_raw_security_group_id
 
-  depends_on = [module.vpc, module.rds_postgresql, module.s3_buckets]
-}
+#   depends_on = [module.vpc, module.rds_postgresql, module.s3_buckets]
+# }
 
 # =============================
 # DMS Module (Currently Disabled)

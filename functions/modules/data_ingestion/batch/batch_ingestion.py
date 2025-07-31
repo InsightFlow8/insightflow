@@ -110,7 +110,14 @@ def lambda_handler(event=None, context=None):
                 data_uploaded = False
 
                 while True:
-                    query = f"SELECT * FROM {database}.{schema}.{table_name} LIMIT {PAGE_SIZE} OFFSET {offset}"
+                    # Only add ORDER BY for ORDERS table to handle duplicate issue
+                    # Other tables use simple query for better performance
+                    if table_name == "ORDERS":
+                        order_by = "ORDER BY ORDER_ID"
+                        query = f"SELECT * FROM {database}.{schema}.{table_name} {order_by} LIMIT {PAGE_SIZE} OFFSET {offset}"
+                    else:
+                        query = f"SELECT * FROM {database}.{schema}.{table_name} LIMIT {PAGE_SIZE} OFFSET {offset}"
+                    
                     cs.execute(query)
                     columns = [col[0] for col in cs.description]
                     rows = cs.fetchall()
