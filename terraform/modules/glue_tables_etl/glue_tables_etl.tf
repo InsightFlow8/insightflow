@@ -69,7 +69,7 @@ module "orders_clean_table" {
     { name = "order_number", type = "int" },
     { name = "order_dow", type = "int" },
     { name = "order_hour_of_day", type = "int" },
-    { name = "days_since_prior_order", type = "double" }
+    { name = "days_since_prior_order", type = "bigint" }
   ]
   depends_on = [aws_glue_catalog_database.clean_data_catalog]
 }

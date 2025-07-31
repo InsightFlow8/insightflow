@@ -85,23 +85,29 @@ variable "aws_az" {
   type        = string
 }
 
-variable "recrawl_behavior" {
-  description = "爬取行为: CRAWL_EVERYTHING(全量) 或 CRAWL_NEW_FOLDERS_ONLY(增量)"
-  type        = string
-  validation {
-    condition = contains([
-      "CRAWL_EVERYTHING",
-      "CRAWL_NEW_FOLDERS_ONLY"
-    ], var.recrawl_behavior)
-    error_message = "Recrawl behavior must be either CRAWL_EVERYTHING or CRAWL_NEW_FOLDERS_ONLY."
-  }
-}
+# =============================
+# Glue Crawler Variables (Temporarily Disabled)
+# =============================
+# NOTE: These variables are temporarily disabled as glue_crawler_raw module is commented out
+# To re-enable: uncomment these variable definitions
 
-variable "crawler_schedule" {
-  description = "Schedule for running crawlers (cron expression)"
-  type        = string
-  default     = "cron(0 15 30 * ? *)"
-}
+# variable "recrawl_behavior" {
+#   description = "爬取行为: CRAWL_EVERYTHING(全量) 或 CRAWL_NEW_FOLDERS_ONLY(增量)"
+#   type        = string
+#   validation {
+#     condition = contains([
+#       "CRAWL_EVERYTHING",
+#       "CRAWL_NEW_FOLDERS_ONLY"
+#     ], var.recrawl_behavior)
+#     error_message = "Recrawl behavior must be either CRAWL_EVERYTHING or CRAWL_NEW_FOLDERS_ONLY."
+#   }
+# }
+
+# variable "crawler_schedule" {
+#   description = "Schedule for running crawlers (cron expression)"
+#   type        = string
+#   default     = "cron(0 15 30 * ? *)"
+# }
 
 # variable "lambda_zip_path" {
 #   description = "Path to Lambda deployment package zip file"
@@ -273,27 +279,54 @@ variable "etl_worker_type" {
 }
 
 # =============================
-# ETL Table Combine Variables
+# ETL Table Combine Variables (Temporarily Disabled)
 # =============================
-variable "table_combine_job_name" {
-  description = "Name for the table combine Glue Job"
-  type        = string
-  default     = "insightflow-table-combine-job"
-}
+# NOTE: Table Combine variables are temporarily disabled per team discussion
+# To re-enable: uncomment these variable definitions
 
-variable "table_combine_iam_role_name" {
-  description = "IAM role name for table combine Glue Job"
-  type        = string
-  default     = "insightflow-glue-table-combine-role"
-}
+# variable "table_combine_job_name" {
+#   description = "Name for the table combine Glue Job"
+#   type        = string
+#   default     = "insightflow-table-combine-job"
+# }
 
-variable "table_combine_output_path" {
-  description = "S3 path for combined table output"
-  type        = string
-  default     = "s3://insightflow-dev-clean-bucket/combined/"
-}
+# variable "table_combine_iam_role_name" {
+#   description = "IAM role name for table combine Glue Job"
+#   type        = string
+#   default     = "insightflow-glue-table-combine-role"
+# }
+
+# variable "table_combine_output_path" {
+#   description = "S3 path for combined table output"
+#   type        = string
+#   default     = "s3://insightflow-dev-clean-bucket/combined/"
+# }
 
 variable "snowflake_secret_name" {
   description = "Snowflake secret name"
   type        = string
+}
+
+# =============================
+# ETL Data Transformation Variables
+# =============================
+variable "data_transformation_job_name" {
+  description = "Name for the data transformation Glue Job"
+  type        = string
+  default     = "insightflow-data-transformation-job"
+}
+
+variable "data_transformation_iam_role_name" {
+  description = "IAM role name for data transformation Glue Job"
+  type        = string
+  default     = "insightflow-glue-data-transformation-role"
+}
+
+# =============================
+# Glue Crawler Transformation Variables
+# =============================
+variable "transformation_crawler_schedule" {
+  description = "Schedule for running transformation feature crawlers (cron expression)"
+  type        = string
+  default     = "cron(0 17 30 * ? *)" # UTC时间每月30日下午5点运行，在 transformation job 完成后
 }

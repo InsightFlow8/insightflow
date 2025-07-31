@@ -69,7 +69,7 @@ module "orders_table" {
     { name = "order_number", type = "int" },
     { name = "order_dow", type = "int" },
     { name = "order_hour_of_day", type = "int" },
-    { name = "days_since_prior", type = "int" }
+    { name = "days_since_prior", type = "string" }
   ]
   depends_on = [aws_glue_catalog_database.raw_data_catalog]
 }

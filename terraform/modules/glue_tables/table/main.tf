@@ -5,6 +5,7 @@ resource "aws_glue_catalog_table" "csv_table" {
 
   parameters = {
     classification = "csv"
+    "skip.header.line.count" = "1"
   }
 
   storage_descriptor {
@@ -14,12 +15,13 @@ resource "aws_glue_catalog_table" "csv_table" {
     compressed    = false
 
     ser_de_info {
-      serialization_library = "org.apache.hadoop.hive.serde2.OpenCSVSerde"
+      serialization_library = "org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe"
       parameters = {
-        "separatorChar"          = ","
+        "field.delim"            = ","
         "skip.header.line.count" = "1"
+        "serialization.null.format" = "NA"
       }
-    }
+  }
 
     dynamic "columns" {
       for_each = var.columns

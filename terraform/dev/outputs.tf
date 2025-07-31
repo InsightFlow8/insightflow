@@ -64,29 +64,31 @@ output "etl_iam_role_name" {
 }
 
 # =============================
-# ETL Table Combine Outputs
+# ETL Table Combine Outputs (Temporarily Disabled)
 # =============================
-output "table_combine_glue_job_name" {
-  description = "Name of the ETL Table Combine Glue Job"
-  value       = module.etl_table_combine.glue_job_name
-}
-
-output "table_combine_glue_job_arn" {
-  description = "ARN of the ETL Table Combine Glue Job"
-  value       = module.etl_table_combine.glue_job_arn
-}
-
-output "table_combine_iam_role_arn" {
-  description = "ARN of the IAM Role for ETL Table Combine Glue Job"
-  value       = module.etl_table_combine.iam_role_arn
-}
-
-output "table_combine_iam_role_name" {
-  description = "Name of the IAM Role for ETL Table Combine Glue Job"
-  value       = module.etl_table_combine.iam_role_name
-}
-
-output "table_combine_output_path" {
-  description = "S3 path for the combined table output"
-  value       = var.table_combine_output_path
-}
+# NOTE: Table Combine outputs are temporarily disabled per team discussion
+# To re-enable: uncomment these output blocks
+# output "table_combine_glue_job_name" {
+#   description = "Name of the ETL Table Combine Glue Job"
+#   value       = module.etl_table_combine.glue_job_name
+# }
+#
+# output "table_combine_glue_job_arn" {
+#   description = "ARN of the ETL Table Combine Glue Job"
+#   value       = module.etl_table_combine.glue_job_arn
+# }
+#
+# output "table_combine_iam_role_arn" {
+#   description = "ARN of the IAM Role for ETL Table Combine Glue Job"
+#   value       = module.etl_table_combine.iam_role_arn
+# }
+#
+# output "table_combine_iam_role_name" {
+#   description = "Name of the IAM Role for ETL Table Combine Glue Job"
+#   value       = module.etl_table_combine.iam_role_name
+# }
+#
+# output "table_combine_output_path" {
+#   description = "S3 path for the combined table output"
+#   value       = var.table_combine_output_path
+# }

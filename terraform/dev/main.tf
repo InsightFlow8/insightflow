@@ -39,19 +39,19 @@ module "glue_tables" {
 # Glue Tables ETL
 module "glue_tables_etl" {
   source = "../modules/glue_tables_etl"
-  
+
   clean_database_name      = "insightflow_imba_clean_data_catalog"
   s3_clean_bucket_name     = var.clean_bucket
   after_clean_table_prefix = "after_clean_"
   env                      = "insightflow_dev"
-  
+
   tags = {
     Project     = "InsightFlow"
     Environment = "insightflow_dev"
     Owner       = "IMBADataTeam"
     Purpose     = "ETLCleanDataCatalog"
   }
-  
+
   depends_on = [module.s3_buckets]
 }
 
@@ -260,27 +260,73 @@ module "etl_data_clean" {
 }
 
 # =============================
-# ETL Table Combine Module
+# ETL Table Combine Module (Temporarily Disabled)
 # =============================
-module "etl_table_combine" {
-  source = "../modules/ETL/table_combine"
+# NOTE: ETL Table Combine module is temporarily disabled per team discussion
+# The module files are preserved for potential future use
+# To re-enable: uncomment this entire module block
+
+# module "etl_table_combine" {
+#   source = "../modules/ETL/table_combine"
+
+#   # Job Configuration
+#   job_name       = var.table_combine_job_name
+#   iam_role_name  = var.table_combine_iam_role_name
+#   temp_dir       = var.etl_temp_dir
+#   scripts_bucket = var.scripts_bucket
+
+#   # Input S3 Paths (from data_clean stage)
+#   aisles_path               = var.aisles_output_path
+#   departments_path          = var.departments_output_path
+#   products_path             = var.products_output_path
+#   orders_path               = var.orders_output_path
+#   order_products_prior_path = var.order_products_prior_output_path
+#   order_products_train_path = var.order_products_train_output_path
+
+#   # Output S3 Path
+#   output_path = var.table_combine_output_path
+
+#   # Glue Configuration
+#   glue_version      = var.etl_glue_version
+#   number_of_workers = var.etl_number_of_workers
+#   worker_type       = var.etl_worker_type
+
+#   tags = {
+#     Project     = "InsightFlow"
+#     Environment = "dev"
+#     Component   = "etl-table-combine"
+#   }
+
+#   depends_on = [module.s3_buckets, module.etl_data_clean]
+# }
+
+# =============================
+# ETL Data Transformation Module
+# =============================
+module "etl_data_transformation" {
+  source = "../modules/ETL/data_transformation"
 
   # Job Configuration
-  job_name       = var.table_combine_job_name
-  iam_role_name  = var.table_combine_iam_role_name
-  temp_dir       = var.etl_temp_dir
-  scripts_bucket = var.scripts_bucket
+  job_name        = var.data_transformation_job_name
+  iam_role_name   = var.data_transformation_iam_role_name
+  temp_dir        = var.etl_temp_dir
+  scripts_bucket  = var.scripts_bucket
+  s3_clean_bucket = var.clean_bucket
 
-  # Input S3 Paths (from data_clean stage)
-  aisles_path               = var.aisles_output_path
-  departments_path          = var.departments_output_path
-  products_path             = var.products_output_path
-  orders_path               = var.orders_output_path
-  order_products_prior_path = var.order_products_prior_output_path
-  order_products_train_path = var.order_products_train_output_path
+  # Input S3 Paths (from after-clean data)
+  aisles_path               = "s3://${var.clean_bucket}/after-clean/aisles/"
+  departments_path          = "s3://${var.clean_bucket}/after-clean/departments/"
+  products_path             = "s3://${var.clean_bucket}/after-clean/products/"
+  orders_path               = "s3://${var.clean_bucket}/after-clean/orders/"
+  order_products_prior_path = "s3://${var.clean_bucket}/after-clean/order_products_prior/"
+  order_products_train_path = "s3://${var.clean_bucket}/after-clean/order_products_train/"
 
-  # Output S3 Path
-  output_path = var.table_combine_output_path
+  # Output S3 Paths (for feature files)
+  user_features_output          = "s3://${var.clean_bucket}/after-transformation/features/user_features/"
+  product_features_output       = "s3://${var.clean_bucket}/after-transformation/features/product_features/"
+  upi_features_output           = "s3://${var.clean_bucket}/after-transformation/features/upi_features/"
+  product_features_union_output = "s3://${var.clean_bucket}/after-transformation/features/product_features_union/"
+  upi_features_union_output     = "s3://${var.clean_bucket}/after-transformation/features/upi_features_union/"
 
   # Glue Configuration
   glue_version      = var.etl_glue_version
@@ -290,8 +336,34 @@ module "etl_table_combine" {
   tags = {
     Project     = "InsightFlow"
     Environment = "dev"
-    Component   = "etl-table-combine"
+    Component   = "etl-data-transformation"
   }
 
   depends_on = [module.s3_buckets, module.etl_data_clean]
+}
+
+# =============================
+# Glue Crawler for Transformation Features
+# =============================
+module "glue_crawler_transformation" {
+  source = "../modules/glue_crawler_transformation"
+
+  env                           = "insightflow_dev"
+  s3_bucket_name                = var.clean_bucket
+  s3_transformation_data_prefix = "after-transformation/features"
+  database_name                 = "insightflow_imba_clean_data_catalog"
+  table_prefix                  = "features_"
+  recrawl_behavior              = "CRAWL_EVERYTHING"
+
+  # 设置在 transformation job 完成后运行
+  crawler_schedule = var.transformation_crawler_schedule
+
+  tags = {
+    Project     = "InsightFlow"
+    Environment = "insightflow_dev"
+    Owner       = "IMBADataTeam"
+    Purpose     = "TransformationFeaturesCrawling"
+  }
+
+  depends_on = [module.s3_buckets, module.etl_data_transformation]
 }

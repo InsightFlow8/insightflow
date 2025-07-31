@@ -125,10 +125,23 @@ def lambda_handler(event=None, context=None):
                     if not rows:
                         break
 
+                    # Process rows to handle null values properly for CSV
+                    processed_rows = []
+                    for row in rows:
+                        processed_row = []
+                        for i, value in enumerate(row):
+                            if value is None:
+                                processed_row.append('')  # Empty string instead of None/null
+                            elif str(value).strip().upper() == 'NA':
+                                processed_row.append('')  # Convert 'NA' strings to empty strings
+                            else:
+                                processed_row.append(value)
+                        processed_rows.append(processed_row)
+
                     csv_buffer = io.StringIO()
                     writer = csv.writer(csv_buffer)
                     writer.writerow(columns)
-                    writer.writerows(rows)
+                    writer.writerows(processed_rows)
                     csv_data = csv_buffer.getvalue()
 
                     # Update s3_key with new structure
