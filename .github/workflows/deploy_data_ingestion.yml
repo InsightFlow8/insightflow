@@ -212,6 +212,17 @@ jobs:
             terraform apply -auto-approve -target=module.vpc
 
       # --- RDS PostgreSQL ---
+      - name: Import existing DB subnet group if exists
+        run: |
+          echo "🔍 Checking if DB subnet group exists..."
+          if aws rds describe-db-subnet-groups --db-subnet-group-name insightflow-dev-postgres-subnet-group >/dev/null 2>&1; then
+            echo "📦 DB subnet group exists, attempting to import..."
+            terraform import module.rds_postgresql.aws_db_subnet_group.postgres insightflow-dev-postgres-subnet-group || echo "⚠️ Import failed or resource already in state"
+          else
+            echo "✅ No existing DB subnet group found, will create new one"
+          fi
+        working-directory: terraform/dev
+
       - name: Terraform Plan (RDS PostgreSQL Only)
         run: terraform plan -input=false -target=module.rds_postgresql
         working-directory: terraform/dev
