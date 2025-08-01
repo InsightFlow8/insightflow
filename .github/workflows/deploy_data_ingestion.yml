@@ -11,6 +11,14 @@ on:
         options:
           - 'false'
           - 'true'
+      clean_state_first:
+        description: 'Clean Terraform state before deployment (use if AWS resources were manually deleted)'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'false'
+          - 'true'
   push:
     branches: [main, IF-25-raw-data-ETL]
     paths:
@@ -107,6 +115,58 @@ jobs:
           else
             echo "✅ No state lock detected"
           fi
+        working-directory: terraform/dev
+        continue-on-error: true
+
+      - name: Diagnose Terraform State
+        run: |
+          echo "🔍 === TERRAFORM STATE DIAGNOSIS ==="
+          echo "📊 Current state summary:"
+          terraform state list || echo "No resources in state"
+          
+          echo ""
+          echo "🔍 Checking for RDS resources in state:"
+          terraform state list | grep -i rds || echo "No RDS resources in state"
+          
+          echo ""
+          echo "🔍 Checking for VPC resources in state:"
+          terraform state list | grep -i vpc || echo "No VPC resources in state"
+          
+          echo ""
+          echo "🔍 Checking for S3 resources in state:"
+          terraform state list | grep -i s3 || echo "No S3 resources in state"
+          
+          echo ""
+          echo "📊 State file info:"
+          terraform state pull | jq '.version, .terraform_version, .resources | length' 2>/dev/null || echo "Could not parse state file"
+          
+          echo "🔍 === END DIAGNOSIS ==="
+        working-directory: terraform/dev
+        continue-on-error: true
+
+      - name: Clean Terraform State (if requested)
+        if: github.event.inputs.clean_state_first == 'true'
+        run: |
+          echo "🧹 === CLEANING TERRAFORM STATE ==="
+          echo "⚠️ WARNING: This will remove all resources from Terraform state!"
+          echo "🔄 Current resources in state:"
+          terraform state list
+          
+          echo ""
+          echo "🧹 Removing all resources from state..."
+          
+          # Get list of all resources and remove them one by one
+          terraform state list | while read resource; do
+            if [ ! -z "$resource" ]; then
+              echo "🗑️ Removing $resource from state..."
+              terraform state rm "$resource" || echo "Failed to remove $resource"
+            fi
+          done
+          
+          echo ""
+          echo "✅ State cleaning completed. Remaining resources:"
+          terraform state list || echo "No resources remain in state"
+          echo "🧹 === CLEANING COMPLETED ==="
         working-directory: terraform/dev
         continue-on-error: true
       
