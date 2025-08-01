@@ -51,6 +51,11 @@ jobs:
       TF_VAR_scripts_bucket: insightflow-dev-scripts-bucket
 
       # Snowflake Configuration
+      TF_VAR_snowflake_user: ${{ secrets.SNOWFLAKE_USER }}
+      TF_VAR_snowflake_password: ${{ secrets.SNOWFLAKE_PASSWORD }}
+      TF_VAR_snowflake_account: ${{ secrets.SNOWFLAKE_ACCOUNT }}
+      TF_VAR_snowflake_warehouse: ${{ secrets.SNOWFLAKE_WAREHOUSE }}
+      TF_VAR_snowflake_role: ${{ secrets.SNOWFLAKE_ROLE }}
       TF_VAR_snowflake_secret_name: snowflake-insightflow
 
       # Database Configuration

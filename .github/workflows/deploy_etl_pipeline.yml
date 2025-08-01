@@ -114,6 +114,10 @@ jobs:
       TF_VAR_curated_bucket: insightflow-dev-curated-bucket
       TF_VAR_scripts_bucket: insightflow-dev-scripts-bucket
 
+      # S3 Configuration
+      TF_VAR_raw_prefix: data/batch
+      TF_VAR_aws_az: ap-southeast-2a
+
       # ETL Data Clean Configuration
       TF_VAR_etl_job_name: insightflow-data-clean-job
       TF_VAR_etl_iam_role_name: insightflow-glue-data-clean-role
