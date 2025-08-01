@@ -1,9 +1,9 @@
-output "glue_job_name" {
+output "data_clean_glue_job_name" {
   description = "The name of the Glue Job for data cleaning."
   value       = aws_glue_job.data_clean.name
 }
 
-output "glue_job_arn" {
+output "data_clean_glue_job_arn" {
   description = "The ARN of the Glue Job for data cleaning."
   value       = aws_glue_job.data_clean.arn
 }

@@ -1,9 +1,9 @@
-output "job_name" {
+output "etl_glue_job_name" {
   description = "Name of the ETL Data Transformation Glue Job"
   value       = aws_glue_job.data_transformation.name
 }
 
-output "job_arn" {
+output "etl_glue_job_arn" {
   description = "ARN of the ETL Data Transformation Glue Job"
   value       = aws_glue_job.data_transformation.arn
 }
