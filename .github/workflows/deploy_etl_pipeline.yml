@@ -139,6 +139,24 @@ jobs:
       TF_VAR_curated_bucket: insightflow-dev-curated-bucket
       TF_VAR_scripts_bucket: insightflow-dev-scripts-bucket
 
+      # Snowflake Configuration
+      TF_VAR_snowflake_user: ${{ secrets.SNOWFLAKE_USER }}
+      TF_VAR_snowflake_password: ${{ secrets.SNOWFLAKE_PASSWORD }}
+      TF_VAR_snowflake_account: ${{ secrets.SNOWFLAKE_ACCOUNT }}
+      TF_VAR_snowflake_warehouse: ${{ secrets.SNOWFLAKE_WAREHOUSE }}
+      TF_VAR_snowflake_role: ${{ secrets.SNOWFLAKE_ROLE }}
+      TF_VAR_snowflake_secret_name: snowflake-insightflow
+
+      # Database Configuration
+      TF_VAR_db_name: insightflow_imba
+      TF_VAR_db_username: ${{ secrets.DB_USERNAME }}
+      TF_VAR_db_password: ${{ secrets.DB_PASSWORD }}
+
+      # EC2 Configuration
+      TF_VAR_ami_id: ami-00839deb72faa8a04
+      TF_VAR_instance_type: t2.micro
+      TF_VAR_key_name: de_insightflow_ec2
+
       # S3 Configuration
       TF_VAR_raw_prefix: data/batch
       TF_VAR_aws_az: ap-southeast-2a
