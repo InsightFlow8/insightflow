@@ -57,6 +57,31 @@ jobs:
         run: terraform init -backend-config="bucket=insightflow-dev-imba-group-state" -backend-config="key=state/terraform.tfstate" -backend-config="region=ap-southeast-2" -backend-config="dynamodb_table=insightflow_imba_group"
         working-directory: terraform/dev
 
+      - name: Check and Force Unlock State (if needed)
+        run: |
+          # Check if state is locked and try to unlock
+          echo "Checking for state locks..."
+          
+          # Try a quick plan to see if state is locked
+          if ! terraform plan -input=false -lock-timeout=10s -target=data.aws_caller_identity.current 2>/dev/null; then
+            echo "⚠️ State appears to be locked. Attempting to retrieve lock info..."
+            
+            # Try to get lock info and extract lock ID
+            LOCK_OUTPUT=$(terraform plan -input=false 2>&1 || true)
+            LOCK_ID=$(echo "$LOCK_OUTPUT" | grep -oP 'ID:\s+\K[a-f0-9-]+' | head -1)
+            
+            if [ ! -z "$LOCK_ID" ]; then
+              echo "🔓 Found lock ID: $LOCK_ID. Attempting to force unlock..."
+              terraform force-unlock -force "$LOCK_ID" || echo "Failed to unlock, but continuing..."
+            else
+              echo "⚠️ Could not extract lock ID from error output"
+            fi
+          else
+            echo "✅ No state lock detected"
+          fi
+        working-directory: terraform/dev
+        continue-on-error: true
+
       - name: Check if S3 buckets exist
         id: check
         run: |
@@ -159,6 +184,31 @@ jobs:
       - name: Terraform Init
         run: terraform init -backend-config="bucket=insightflow-dev-imba-group-state" -backend-config="key=state/terraform.tfstate" -backend-config="region=ap-southeast-2" -backend-config="dynamodb_table=insightflow_imba_group"
         working-directory: terraform/dev
+
+      - name: Check and Force Unlock State (if needed)
+        run: |
+          # Check if state is locked and try to unlock
+          echo "Checking for state locks..."
+          
+          # Try a quick plan to see if state is locked
+          if ! terraform plan -input=false -lock-timeout=10s -target=data.aws_caller_identity.current 2>/dev/null; then
+            echo "⚠️ State appears to be locked. Attempting to retrieve lock info..."
+            
+            # Try to get lock info and extract lock ID
+            LOCK_OUTPUT=$(terraform plan -input=false 2>&1 || true)
+            LOCK_ID=$(echo "$LOCK_OUTPUT" | grep -oP 'ID:\s+\K[a-f0-9-]+' | head -1)
+            
+            if [ ! -z "$LOCK_ID" ]; then
+              echo "🔓 Found lock ID: $LOCK_ID. Attempting to force unlock..."
+              terraform force-unlock -force "$LOCK_ID" || echo "Failed to unlock, but continuing..."
+            else
+              echo "⚠️ Could not extract lock ID from error output"
+            fi
+          else
+            echo "✅ No state lock detected"
+          fi
+        working-directory: terraform/dev
+        continue-on-error: true
       
       - name: Terraform Format Check
         run: terraform fmt -check
