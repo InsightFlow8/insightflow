@@ -1,0 +1,241 @@
+name: Deploy ETL Data Processing Pipeline
+
+on:
+  workflow_dispatch:
+    inputs:
+      skip_prerequisites_check:
+        description: 'Skip prerequisites check (if data ingestion already deployed)'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'false'
+          - 'true'
+  push:
+    branches: [main, IF-25-raw-data-ETL]
+    paths:
+      - 'terraform/dev/main.tf'
+      - 'terraform/dev/variables.tf'
+      - 'terraform/dev/terraform.tfvars'
+      - 'terraform/modules/ETL/**'
+      - 'terraform/modules/glue_tables_etl/**'
+      - 'terraform/modules/glue_crawler_transformation/**'
+      - 'functions/modules/ETL/**'
+      - '.github/workflows/deploy_etl_pipeline.yml'
+  workflow_call:
+    # Allow this workflow to be called by other workflows
+
+permissions:
+  contents: read
+  actions: write  # Allow triggering other workflows
+
+jobs:
+  # Check if data ingestion infrastructure exists
+  check-prerequisites:
+    name: Check Prerequisites
+    runs-on: ubuntu-latest
+    if: github.event.inputs.skip_prerequisites_check != 'true'
+    outputs:
+      should-deploy: ${{ steps.check.outputs.should-deploy }}
+      needs-data-ingestion: ${{ steps.check.outputs.needs-data-ingestion }}
+    
+    env:
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_REGION: ap-southeast-2
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: ">= 1.7.5"
+
+      - name: Terraform Init
+        run: terraform init -backend-config="bucket=insightflow-dev-imba-group-state" -backend-config="key=state/terraform.tfstate" -backend-config="region=ap-southeast-2" -backend-config="dynamodb_table=insightflow_imba_group"
+        working-directory: terraform/dev
+
+      - name: Check if S3 buckets exist
+        id: check
+        run: |
+          # Check if required S3 buckets exist in Terraform state
+          if terraform state list | grep -q "module.s3_buckets"; then
+            echo "should-deploy=true" >> $GITHUB_OUTPUT
+            echo "needs-data-ingestion=false" >> $GITHUB_OUTPUT
+            echo "✅ Prerequisites met: S3 buckets found in state"
+          else
+            echo "should-deploy=false" >> $GITHUB_OUTPUT
+            echo "needs-data-ingestion=true" >> $GITHUB_OUTPUT
+            echo "⚠️ Prerequisites not met: S3 buckets not found. Data ingestion workflow will be triggered first."
+          fi
+        working-directory: terraform/dev
+
+  # Trigger data ingestion workflow if needed
+  trigger-data-ingestion:
+    name: Trigger Data Ingestion
+    runs-on: ubuntu-latest
+    needs: check-prerequisites
+    if: needs.check-prerequisites.outputs.needs-data-ingestion == 'true'
+    
+    steps:
+      - name: Trigger Data Ingestion Workflow
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const result = await github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'deploy_data_ingestion.yml',
+              ref: context.ref
+            });
+            console.log('✅ Data ingestion workflow triggered successfully');
+            
+            // Wait for the workflow to complete (simplified approach)
+            console.log('⏳ Waiting for data ingestion to complete...');
+            await new Promise(resolve => setTimeout(resolve, 30000)); // Wait 30 seconds
+
+  deploy-etl:
+    name: Deploy ETL Pipeline
+    runs-on: ubuntu-latest
+    needs: [check-prerequisites, trigger-data-ingestion]
+    if: always() && (needs.check-prerequisites.outputs.should-deploy == 'true' || github.event.inputs.skip_prerequisites_check == 'true' || needs.trigger-data-ingestion.result == 'success')
+
+    env:
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_REGION: ap-southeast-2
+
+      # AWS Configuration
+      TF_VAR_aws_region: ap-southeast-2
+      TF_VAR_raw_bucket: insightflow-dev-raw-bucket
+      TF_VAR_clean_bucket: insightflow-dev-clean-bucket
+      TF_VAR_curated_bucket: insightflow-dev-curated-bucket
+      TF_VAR_scripts_bucket: insightflow-dev-scripts-bucket
+
+      # ETL Data Clean Configuration
+      TF_VAR_etl_job_name: insightflow-data-clean-job
+      TF_VAR_etl_iam_role_name: insightflow-glue-data-clean-role
+      TF_VAR_etl_script_location: s3://insightflow-dev-scripts/ETL/data_clean/ETL_data_clean.py
+      TF_VAR_etl_temp_dir: s3://insightflow-dev-clean-bucket/glue-temp/
+
+      # Input S3 Paths (Raw Data)
+      TF_VAR_aisles_input_path: s3://insightflow-dev-raw-bucket/data/batch/aisles/
+      TF_VAR_departments_input_path: s3://insightflow-dev-raw-bucket/data/batch/departments/
+      TF_VAR_products_input_path: s3://insightflow-dev-raw-bucket/data/batch/products/
+      TF_VAR_orders_input_path: s3://insightflow-dev-raw-bucket/data/batch/orders/
+      TF_VAR_order_products_prior_input_path: s3://insightflow-dev-raw-bucket/data/batch/order_products_prior/
+      TF_VAR_order_products_train_input_path: s3://insightflow-dev-raw-bucket/data/batch/order_products_train/
+
+      # Output S3 Paths (Clean Data)
+      TF_VAR_aisles_output_path: s3://insightflow-dev-clean-bucket/after-clean/aisles/
+      TF_VAR_departments_output_path: s3://insightflow-dev-clean-bucket/after-clean/departments/
+      TF_VAR_products_output_path: s3://insightflow-dev-clean-bucket/after-clean/products/
+      TF_VAR_orders_output_path: s3://insightflow-dev-clean-bucket/after-clean/orders/
+      TF_VAR_order_products_prior_output_path: s3://insightflow-dev-clean-bucket/after-clean/order_products_prior/
+      TF_VAR_order_products_train_output_path: s3://insightflow-dev-clean-bucket/after-clean/order_products_train/
+
+      # Glue Job Configuration
+      TF_VAR_etl_glue_version: "4.0"
+      TF_VAR_etl_number_of_workers: 5
+      TF_VAR_etl_worker_type: G.1X
+
+      # Data Transformation Configuration
+      TF_VAR_data_transformation_job_name: insightflow-data-transformation-job
+      TF_VAR_data_transformation_iam_role_name: insightflow-glue-data-transformation-role
+
+      # Transformation Crawler Configuration
+      TF_VAR_transformation_crawler_schedule: "cron(0 17 30 * ? *)"
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: ">= 1.7.5"
+
+      - name: Terraform Init
+        run: terraform init -backend-config="bucket=insightflow-dev-imba-group-state" -backend-config="key=state/terraform.tfstate" -backend-config="region=ap-southeast-2" -backend-config="dynamodb_table=insightflow_imba_group"
+        working-directory: terraform/dev
+      
+      - name: Terraform Format Check
+        run: terraform fmt -check
+        working-directory: terraform/dev
+
+      # --- Glue Tables ETL ---
+      - name: Terraform Plan (Glue Tables ETL Only)
+        run: terraform plan -input=false -target=module.glue_tables_etl
+        working-directory: terraform/dev
+
+      - name: Terraform Apply (Glue Tables ETL Only)
+        run: |
+          cd terraform/dev
+          terraform apply -auto-approve -target=module.glue_tables_etl
+
+      # --- ETL Data Clean Module ---
+      - name: Terraform Plan (ETL Data Clean Only)
+        run: terraform plan -input=false -target=module.etl_data_clean
+        working-directory: terraform/dev
+
+      - name: Terraform Apply (ETL Data Clean Only) with Retry
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 15
+          max_attempts: 3
+          retry_wait_seconds: 60
+          command: |
+            cd terraform/dev
+            terraform apply -auto-approve -target=module.etl_data_clean
+
+      # --- ETL Data Transformation Module ---
+      - name: Terraform Plan (ETL Data Transformation Only)
+        run: terraform plan -input=false -target=module.etl_data_transformation
+        working-directory: terraform/dev
+
+      - name: Terraform Apply (ETL Data Transformation Only) with Retry
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 15
+          max_attempts: 3
+          retry_wait_seconds: 60
+          command: |
+            cd terraform/dev
+            terraform apply -auto-approve -target=module.etl_data_transformation
+
+      # --- Glue Crawler Transformation ---
+      - name: Terraform Plan (Glue Crawler Transformation Only)
+        run: terraform plan -input=false -target=module.glue_crawler_transformation
+        working-directory: terraform/dev
+
+      - name: Terraform Apply (Glue Crawler Transformation Only) with Retry
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 15
+          max_attempts: 3
+          retry_wait_seconds: 60
+          command: |
+            cd terraform/dev
+            terraform apply -auto-approve -target=module.glue_crawler_transformation
+
+      # =============================
+      # Temporarily Disabled Modules
+      # =============================
+      # NOTE: The following modules are commented out and can be enabled when needed
+
+      # --- ETL Table Combine (Temporarily Disabled) ---
+      # - name: Terraform Plan (ETL Table Combine Only)
+      #   run: terraform plan -input=false -target=module.etl_table_combine
+      #   working-directory: terraform/dev
+
+      # - name: Terraform Apply (ETL Table Combine Only) with Retry
+      #   uses: nick-fields/retry@v3
+      #   with:
+      #     timeout_minutes: 15
+      #     max_attempts: 3
+      #     retry_wait_seconds: 60
+      #     command: |
+      #       cd terraform/dev
+      #       terraform apply -auto-approve -target=module.etl_table_combine

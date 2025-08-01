@@ -1,21 +1,41 @@
-name: Deploy S3 buckets & Module-data_ingestion (batch & streaming)
+name: Deploy Data Ingestion Infrastructure
 
 on:
   workflow_dispatch:
+    inputs:
+      trigger_etl_after:
+        description: 'Trigger ETL pipeline after data ingestion'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'false'
+          - 'true'
   push:
-    branches: [main]
+    branches: [main, IF-25-raw-data-ETL]
     paths:
-      - 'terraform/dev/**'
-      - 'terraform/modules/**'
+      - 'terraform/dev/main.tf'
+      - 'terraform/dev/variables.tf'
+      - 'terraform/dev/terraform.tfvars'
+      - 'terraform/modules/s3_buckets/**'
+      - 'terraform/modules/vpc/**'
+      - 'terraform/modules/rds_postgresql/**'
+      - 'terraform/modules/ec2/**'
+      - 'terraform/modules/glue_tables/**'
+      - 'terraform/modules/glue_tables_etl/**'
+      - 'terraform/modules/data_ingestion/batch/**'
       - '.github/workflows/deploy_data_ingestion.yml'
       - 'terraform/assets/**'
+  workflow_call:
+    # Allow this workflow to be called by other workflows
 
 permissions:
   contents: read
+  actions: write  # Allow triggering other workflows
 
 jobs:
   terraform:
-    name: Apply S3 Buckets and Batch Ingestion
+    name: Deploy Data Ingestion Infrastructure
     runs-on: ubuntu-latest
 
     env:
@@ -23,34 +43,29 @@ jobs:
       AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
       AWS_REGION: ap-southeast-2
 
+      # AWS Configuration
       TF_VAR_aws_region: ap-southeast-2
-      TF_VAR_raw_bucket: insightflow-raw-bucket
-      TF_VAR_clean_bucket: insightflow-clean-bucket
+      TF_VAR_raw_bucket: insightflow-dev-raw-bucket
+      TF_VAR_clean_bucket: insightflow-dev-clean-bucket
+      TF_VAR_curated_bucket: insightflow-dev-curated-bucket
+      TF_VAR_scripts_bucket: insightflow-dev-scripts-bucket
 
+      # Snowflake Configuration
       TF_VAR_snowflake_secret_name: snowflake-insightflow
 
+      # Database Configuration
       TF_VAR_db_name: insightflow_imba
       TF_VAR_db_username: ${{ secrets.DB_USERNAME }}
       TF_VAR_db_password: ${{ secrets.DB_PASSWORD }}
 
+      # EC2 Configuration
       TF_VAR_ami_id: ami-00839deb72faa8a04
       TF_VAR_instance_type: t2.micro
       TF_VAR_key_name: de_insightflow_ec2
 
+      # S3 Configuration
       TF_VAR_raw_prefix: data/batch
       TF_VAR_aws_az: ap-southeast-2a
-
-      # Data Sync Raw Configuration Variables d
-      TF_VAR_table_name: '["orders", "aisles", "products", "departments", "order_products_prior", "order_products_train"]'
-      TF_VAR_s3_key_prefix: '["data/batch/orders/", "data/batch/aisles/", "data/batch/products/", "data/batch/departments/", "data/batch/order_products_prior/", "data/batch/order_products_train/"]'
-      TF_VAR_start_ts: 1900-01-01-0000
-      TF_VAR_end_ts: 2099-12-31-2359
-      TF_VAR_eventbridge_schedule: cron(0 16 * * ? *)
-
-      # Glue Crawler Configuration Variables
-      # TF_VAR_recrawl_behavior: CRAWL_EVERYTHING # Only for the first crawler run
-      TF_VAR_recrawl_behavior: CRAWL_NEW_FOLDERS_ONLY # Incremental crawling for subsequent runs
-      TF_VAR_crawler_schedule: "cron(0 15 30 * ? *)"
 
     steps:
       - name: Checkout code
@@ -62,7 +77,7 @@ jobs:
           terraform_version: ">= 1.7.5"
 
       - name: Terraform Init
-        run: terraform init -backend-config="bucket=insightflow-imba-group-state-tobby" -backend-config="key=state/terraform.tfstate" -backend-config="region=ap-southeast-2" -backend-config="dynamodb_table=insightflow_imba_group_tobby"
+        run: terraform init -backend-config="bucket=insightflow-dev-imba-group-state" -backend-config="key=state/terraform.tfstate" -backend-config="region=ap-southeast-2" -backend-config="dynamodb_table=insightflow_imba_group"
         working-directory: terraform/dev
       
       - name: Terraform Format Check
@@ -161,7 +176,31 @@ jobs:
             cd terraform/dev
             terraform apply -auto-approve -target=module.batch_ingestion
 
-      # --- Streaming Ingestion ---
+      # =============================
+      # Optional: Trigger ETL Pipeline
+      # =============================
+      - name: Trigger ETL Pipeline (Optional)
+        if: github.event.inputs.trigger_etl_after == 'true'
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const result = await github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'deploy_etl_pipeline.yml',
+              ref: context.ref,
+              inputs: {
+                skip_prerequisites_check: 'true'
+              }
+            });
+            console.log('✅ ETL pipeline workflow triggered successfully');
+
+      # =============================
+      # Temporarily Disabled Modules
+      # =============================
+      # NOTE: The following modules are commented out and can be enabled when needed
+
+      # --- Streaming Ingestion (Temporarily Disabled) ---
       # - name: Terraform Plan (Streaming Ingestion Only)
       #   run: terraform plan -input=false -target=module.streaming_ingestion
       #   working-directory: terraform/dev
@@ -176,7 +215,7 @@ jobs:
       #       cd terraform/dev
       #       terraform apply -auto-approve -target=module.streaming_ingestion
 
-      # # --- Glue Crawler Raw ---
+      # --- Glue Crawler Raw (Temporarily Disabled) ---
       # - name: Terraform Plan (Glue Crawler Raw Only)
       #   run: terraform plan -input=false -target=module.glue_crawler_raw
       #   working-directory: terraform/dev
@@ -191,7 +230,7 @@ jobs:
       #       cd terraform/dev
       #       terraform apply -auto-approve -target=module.glue_crawler_raw
 
-      # --- Data Sync Raw ---
+      # --- Data Sync Raw (Temporarily Disabled) ---
       # - name: Terraform Plan (Data Sync Raw Only)
       #   run: terraform plan -input=false -target=module.data_sync_raw
       #   working-directory: terraform/dev
