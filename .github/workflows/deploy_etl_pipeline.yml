@@ -117,11 +117,6 @@ jobs:
       # S3 Configuration
       TF_VAR_raw_prefix: data/batch
       TF_VAR_aws_az: ap-southeast-2a
-
-      # ETL Data Clean Configuration
-      TF_VAR_etl_job_name: insightflow-data-clean-job
-      TF_VAR_etl_iam_role_name: insightflow-glue-data-clean-role
-      TF_VAR_etl_script_location: s3://insightflow-dev-scripts/ETL/data_clean/ETL_data_clean.py
       TF_VAR_etl_temp_dir: s3://insightflow-dev-clean-bucket/glue-temp/
 
       # Input S3 Paths (Raw Data)

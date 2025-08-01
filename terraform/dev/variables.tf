@@ -190,73 +190,87 @@ variable "etl_iam_role_name" {
 variable "etl_script_location" {
   description = "S3 path to the ETL PySpark script"
   type        = string
+  default     = "s3://insightflow-dev-scripts/ETL/data_clean/ETL_data_clean.py"
 }
 
 variable "etl_temp_dir" {
   description = "S3 temp directory for Glue Job"
   type        = string
+  default     = "s3://insightflow-dev-clean-bucket/glue-temp/"
 }
 
 # Input S3 Paths
 variable "aisles_input_path" {
   description = "S3 input path for aisles table"
   type        = string
+  default     = "s3://insightflow-dev-raw-bucket/data/batch/aisles/"
 }
 
 variable "departments_input_path" {
   description = "S3 input path for departments table"
   type        = string
+  default     = "s3://insightflow-dev-raw-bucket/data/batch/departments/"
 }
 
 variable "products_input_path" {
   description = "S3 input path for products table"
   type        = string
+  default     = "s3://insightflow-dev-raw-bucket/data/batch/products/"
 }
 
 variable "orders_input_path" {
   description = "S3 input path for orders table"
   type        = string
+  default     = "s3://insightflow-dev-raw-bucket/data/batch/orders/"
 }
 
 variable "order_products_prior_input_path" {
   description = "S3 input path for order_products_prior table"
   type        = string
+  default     = "s3://insightflow-dev-raw-bucket/data/batch/order_products_prior/"
 }
 
 variable "order_products_train_input_path" {
   description = "S3 input path for order_products_train table"
   type        = string
+  default     = "s3://insightflow-dev-raw-bucket/data/batch/order_products_train/"
 }
 
 # Output S3 Paths
 variable "aisles_output_path" {
   description = "S3 output path for cleaned aisles table"
   type        = string
+  default     = "s3://insightflow-dev-clean-bucket/after-clean/aisles/"
 }
 
 variable "departments_output_path" {
   description = "S3 output path for cleaned departments table"
   type        = string
+  default     = "s3://insightflow-dev-clean-bucket/after-clean/departments/"
 }
 
 variable "products_output_path" {
   description = "S3 output path for cleaned products table"
   type        = string
+  default     = "s3://insightflow-dev-clean-bucket/after-clean/products/"
 }
 
 variable "orders_output_path" {
   description = "S3 output path for cleaned orders table"
   type        = string
+  default     = "s3://insightflow-dev-clean-bucket/after-clean/orders/"
 }
 
 variable "order_products_prior_output_path" {
   description = "S3 output path for cleaned order_products_prior table"
   type        = string
+  default     = "s3://insightflow-dev-clean-bucket/after-clean/order_products_prior/"
 }
 
 variable "order_products_train_output_path" {
   description = "S3 output path for cleaned order_products_train table"
   type        = string
+  default     = "s3://insightflow-dev-clean-bucket/after-clean/order_products_train/"
 }
 
 # Glue Configuration
