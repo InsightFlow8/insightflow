@@ -11,6 +11,11 @@ output "rds_port" {
   value       = module.rds_postgresql.rds_port
 }
 
+output "vpc_id" {
+  description = "ID of the VPC"
+  value       = module.vpc.vpc_id
+}
+
 # =============================
 # Glue Crawler Outputs
 # =============================

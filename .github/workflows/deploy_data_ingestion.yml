@@ -212,12 +212,43 @@ jobs:
             terraform apply -auto-approve -target=module.vpc
 
       # --- RDS PostgreSQL ---
-      - name: Import existing DB subnet group if exists
+      - name: Check and handle existing DB subnet group
         run: |
           echo "🔍 Checking if DB subnet group exists..."
           if aws rds describe-db-subnet-groups --db-subnet-group-name insightflow-dev-postgres-subnet-group >/dev/null 2>&1; then
-            echo "📦 DB subnet group exists, attempting to import..."
-            terraform import module.rds_postgresql.aws_db_subnet_group.postgres insightflow-dev-postgres-subnet-group || echo "⚠️ Import failed or resource already in state"
+            echo "📦 DB subnet group exists, checking VPC compatibility..."
+            
+            # Get current VPC ID from Terraform state
+            CURRENT_VPC=$(terraform output -raw vpc_id 2>/dev/null || echo "")
+            
+            if [ -z "$CURRENT_VPC" ]; then
+              echo "⚠️ Could not get current VPC ID from Terraform state"
+              CURRENT_VPC=$(aws ec2 describe-vpcs --filters "Name=tag:Name,Values=insightflow-dev-vpc" --query "Vpcs[0].VpcId" --output text 2>/dev/null || echo "")
+            fi
+            
+            if [ -n "$CURRENT_VPC" ] && [ "$CURRENT_VPC" != "None" ]; then
+              # Get DB subnet group VPC
+              DB_SUBNET_VPC=$(aws rds describe-db-subnet-groups --db-subnet-group-name insightflow-dev-postgres-subnet-group --query "DBSubnetGroups[0].VpcId" --output text 2>/dev/null || echo "")
+              
+              echo "🏗️ Current VPC: $CURRENT_VPC"
+              echo "📦 DB Subnet Group VPC: $DB_SUBNET_VPC"
+              
+              if [ "$CURRENT_VPC" != "$DB_SUBNET_VPC" ]; then
+                echo "🚨 VPC mismatch detected! DB subnet group is in wrong VPC."
+                echo "🗑️ Deleting old DB subnet group to recreate in correct VPC..."
+                aws rds delete-db-subnet-group --db-subnet-group-name insightflow-dev-postgres-subnet-group || echo "⚠️ Failed to delete DB subnet group"
+                
+                # Wait a bit for deletion to complete
+                echo "⏳ Waiting for deletion to complete..."
+                sleep 30
+              else
+                echo "✅ DB subnet group is in correct VPC, attempting to import..."
+                terraform import module.rds_postgresql.aws_db_subnet_group.postgres insightflow-dev-postgres-subnet-group || echo "⚠️ Import failed or resource already in state"
+              fi
+            else
+              echo "⚠️ Could not determine current VPC ID, will attempt import anyway..."
+              terraform import module.rds_postgresql.aws_db_subnet_group.postgres insightflow-dev-postgres-subnet-group || echo "⚠️ Import failed or resource already in state"
+            fi
           else
             echo "✅ No existing DB subnet group found, will create new one"
           fi
