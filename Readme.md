@@ -5,7 +5,7 @@
 
 This repository provides a modular, production-grade data ingestion pipeline for AWS, focusing on the batch and streaming ingestion of data from Snowflake and other sources into S3, and further synchronization with PostgreSQL RDS. The pipeline is fully managed via Terraform (IaC) and supports automated deployment through GitHub Actions.
 
-![Data Pipeline Diagram](data_ingestion_20250720.png)
+![Data Pipeline Diagram](data_ingestion_20250802.png)
 
 ### Directory Structure
 
@@ -79,7 +79,7 @@ Batch ingestion from Snowflake to S3 using Lambda:
 - **Path:** the Lambda function script will generate a timestamp partition key path like `insightflow-raw-bucket/data/batch/<table_name>/year=YYYY/month=MM/day=DD/hhmm=HHMM/<table_name>_part[*].csv`. The timestamp is the trigger time of the function.
 - **Scheduler:** EventBridge `batch_ingestion_trigger` has been set as the scheduler to trigger the batch ingestion Lambda function regularly. Currently it is set as `"cron(0 14 30 * ? *)"` , which means UTC time 14:00  on every 30th day of the month (i.e. Sydney time 0:00（winter time）of every 31th of the month). The rule can be adjusted per needs.
 
-### 4. data_ingestion/streaming
+### 4. data_ingestion/streaming - currently disabled
 Streaming ingestion module (future extension):
 - **Source:** Real-time dummy data publisher by `streaming_data_publisher.py`
 - Kinesis Data Stream to store the streaming data and trigger Kinesis Data Firehose
@@ -101,14 +101,14 @@ Streaming ingestion module (future extension):
 - Deploys a bastion host in the public subnet for secure SSH access RDS and debugging.
 - EC2 instance creates the tables needed for data sync by `bastion-init.sh` & `create_tables.sql` when starting up.
 
-### 8. glue_crawler_raw
+### 8. glue_crawler_raw - currently disabled
 - Configures AWS Glue Crawler to scan S3 raw data and update Glue Data Catalog tables for downstream ETL & analytics.
 - For the first time of crawling, SET `recrawl_behavior = "CRAWL_EVERYTHING"`；for the later crawling, SET `recrawl_behavior = "CRAWL_NEW_FOLDERS_ONLY"` for cost-efficiency (`terraform.tfvars` & `deploy_batch_ingestion.yml`).
 - A placeholder.txt is created in the pipeline deployment to aviod data source errors in the glue_crawler_raw deployment. These .txt files would NOT be included in glue crawling.
 - **Scheduler:** Glue crawler has its own scheduler. Currently it is set as `"cron(0 15 30 * ? *)"` , which means UTC time 15:00  on every 30th day of the month (i.e. Sydney time 1:00 （winter time）of every 31th of the month). The rule can be adjusted per needs.
 
 
-### 9. data_sync_raw
+### 9. data_sync_raw - currently disabled
 - Synchronizes data between S3 raw zone and PostgreSQL RDS using Lambda:
 - **Functionality:** 
    1) Full sync: use the default `start_ts` and `end_ts`
@@ -119,8 +119,7 @@ Streaming ingestion module (future extension):
 
 ### 10. ETL Modules
 - **data_clean**: Glue ETL job for data cleaning and preprocessing
-- **data_transformation**: Glue ETL job for data transformation and feature engineering
-- **table_combine**: Glue ETL job for combining and aggregating data tables
+- **data_transformation**: Glue ETL job for data transformation and feature engineering. For the product and user-product interactive features, two datasets are provided: 1) only the "PRIOR" datase, and 2) the "PRIOR" + "TRAIN" dataset
 - **glue_crawler_transformation**: Crawlers for transformed data cataloging
 - **glue_tables_etl**: Glue tables for ETL results
 
@@ -139,7 +138,7 @@ Streaming ingestion module (future extension):
 - **Parallel Processing:** 5 concurrent crawlers for optimal performance
 - **IAM Security:** Proper roles and policies for all services
 - **Makefile Integration:** Simple execution commands
-
+![Step Functions Graph](stepfunctions_graph.png)
 
 ### 12. main entry (terraform/dev)
 - Centralized entry point for deploying all modules. Contains main Terraform configuration and variable definitions.
@@ -224,21 +223,34 @@ make execute-pipeline
 1. To deploy the pipeline from another account, you need to set YOUR OWN AWS account's ACCESS KEY and SECRET ACCESS KEY as the environment variables.
 2. Although not being complusory, it is highly recommened to set YOUR OWN Snowflake ACCOUNT INFORMATION as the enviornment variables because the author's Snowflake account is a 30-day-free trial account. 
 
-   However, the current Snowflake access AWS via a storage_integration (https://docs.snowflake.com/en/user-guide/data-load-s3-config-storage-integration). If you use your own Snowflake account, you will need to create a new STORAGE_INTEGRATION in Snowflake and update it in the environment variables. 
-
-   Alternatively, you can change the current "functions/modules/prerequisite_snowflake_data_upstream_load/snowflake_upload.py" and  "functions/modules/data_ingestion/batch/batch_ingestion.py" scripts to create the connection through another connection methods.
+   <!-- However, the current Snowflake access AWS via a storage_integration (https://docs.snowflake.com/en/user-guide/data-load-s3-config-storage-integration). If you use your own Snowflake account, you will need to create a new STORAGE_INTEGRATION in Snowflake and update it in the environment variables.  -->
+<!-- 
+   Alternatively, you can change the current "functions/modules/prerequisite_snowflake_data_upstream_load/snowflake_upload.py" and  "functions/modules/data_ingestion/batch/batch_ingestion.py" scripts to create the connection through another connection methods. -->
 
 3. All variable names & values can be altered per your preference, but make sure they are correctly passed between modules.
 
-4. For the first deployment and batch ingestion, SET `recrawl_behavior = "CRAWL_EVERYTHING"`；for the later crawling after there are alreay Glue tables, SET `recrawl_behavior = "CRAWL_NEW_FOLDERS_ONLY"` for cost-efficiency (`terraform.tfvars` & `deploy_batch_ingestion.yml`).
+4. In local test, you can selectively deploy or destroy target modules per your needs by "Terraform plan/apply/destroy -target.module `module_name`"
+
+<!-- 4. For the first deployment and batch ingestion, SET `recrawl_behavior = "CRAWL_EVERYTHING"`；for the later crawling after there are alreay Glue tables, SET `recrawl_behavior = "CRAWL_NEW_FOLDERS_ONLY"` for cost-efficiency (`terraform.tfvars` & `deploy_batch_ingestion.yml`). -->
 5. In `Terraform destroy`, be careful:
    1) the folder must be emptied if you want to destroy them as well
    2) the EC2 instance Network Interface will persist for a while (10-20 mins) even the instance has been removed. These network interfaces will delay the destroy of VPC.
+   3) Please note the dependency between different modules. You CANNOT destroy a module that is being depended by other modules before removing the dependent modules. The dependency by 02 Aug. 2025 includes:
+      1. module."s3_buckets" -> module "glue_tables"
+      2. module."s3_buckets" -> module "glue_tables_etl"
+      3. module."s3_buckets" -> module "batch_ingestion"
+      4. module."vpc", module."rds_postgresql" -> module "ec2"
+      5. module."vpc" -> module."rds_postgresql"
+      6. module."s3_buckets" -> module "etl_data_clean"
+      7. module."s3_buckets", module "etl_data_clean" -> module "etl_data_transformation"
+      8. module."s3_buckets", module "etl_data_transformation" -> module "glue_crawler_transformation"
+      9. module."batch_ingestion", module."etl_data_transformation", module."etl_data_clean", module."glue_crawler_transformation" -> module "step_functions"
+
 
 ### Further exploration & improvement
 1. The large dataset (e.g. `order_products_prior`) CANNOT be synced by the current Lambda function. Alternative solutions might be explored (e.g. `AWS DMS`) in the later stages.
 2. The incremental data sync is achieved by adjust the start & end time manually in the current Lambda function. Better solutions might be explored to realize the auto-incremental sync in the future.
-3. Data orchestration service like `Amazon Managed Workflows for Apache Airflow (MWAA)` might be included in the pipeline to better coordinate the data flows in the later stages.
+<!-- 3. Data orchestration service like `Amazon Managed Workflows for Apache Airflow (MWAA)` might be included in the pipeline to better coordinate the data flows in the later stages. -->
 ---
 🧑‍💻 Author
 
@@ -247,3 +259,6 @@ Yifan Sun (Aaron)
 
 Zidan Guo (Tobby)
 [LinkedIn]()
+
+ChienHsiang Yeh
+[LinkedIn](https://www.linkedin.com/in/chienhsiang-yeh/)
