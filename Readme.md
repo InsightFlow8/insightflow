@@ -51,6 +51,7 @@ This repository provides a modular, production-grade data ingestion pipeline for
 │       │   ├── raw/
 │       │   └── ...
 │       └── ...
+├── Makefile            # NEW: Pipeline execution commands
 └── other_files (README.md, .gitignore, .env, etc.)
 ```
 
@@ -116,8 +117,31 @@ Streaming ingestion module (future extension):
 - **Limitation:** Due to the Lamdba capacity (max runtime: 15 minutes) and the data transformation rate of RDS Postgresql, the large tables `order_products_prior` CANNOT be sync by the current Lambda function. Alternative methods would be needed to solve this problem (e.g. DMS service)
 - **Scheduler:** EventBridge `lambda-s3-to-rds-schedule` has been set as the scheduler to trigger the data_sync_raw Lambda function regularly. Currently it is set as `"cron(0 16 30 * ? *)"` , which means UTC time 16:00  on every 30th day of the month (i.e. Sydney time 2:00 （winter time）of every 31th of the month). The rule can be adjusted per needs.
 
+### 10. ETL Modules
+- **data_clean**: Glue ETL job for data cleaning and preprocessing
+- **data_transformation**: Glue ETL job for data transformation and feature engineering
+- **table_combine**: Glue ETL job for combining and aggregating data tables
+- **glue_crawler_transformation**: Crawlers for transformed data cataloging
+- **glue_tables_etl**: Glue tables for ETL results
 
-### 10. main entry (terraform/dev)
+### 11. step_functions 
+**Complete Data Pipeline Orchestration with EventBridge Automation:**
+- **Orchestration:** End-to-end data pipeline execution from ingestion to cataloging
+- **Workflow:** Lambda → Glue Clean → Glue ETL → Parallel Crawlers (5 concurrent)
+- **Automation:** EventBridge integration for scheduled pipeline execution
+- **Error Handling:** Comprehensive error catching and failure states
+- **Monitoring:** Real-time execution status tracking
+- **Execution:** Simplified via `make execute-pipeline` command
+
+**Key Features:**
+- **State Machine:** Complete workflow with 15+ states including error handling
+- **EventBridge Integration:** Automated triggering (every minute for testing, daily for production)
+- **Parallel Processing:** 5 concurrent crawlers for optimal performance
+- **IAM Security:** Proper roles and policies for all services
+- **Makefile Integration:** Simple execution commands
+
+
+### 12. main entry (terraform/dev)
 - Centralized entry point for deploying all modules. Contains main Terraform configuration and variable definitions.
 
 ---
@@ -168,6 +192,25 @@ Make sure to commit the changes to `.gitattributes` along with your new files.
 3. Run module-specific scripts as needed (see `functions/modules`).
 4. The current module dependency is listed in the terraform/dev/main.tf. If you want to deploy the pipeline by module, the correct order must be followed.
 5. It will take a few time to deploy all current resources. Sometimes it will report error due to the timeout of AWS credentials during a deployment. Just retry the deployment by `terraform apply` and the error will be resolved in most cases.
+
+### Step Functions Pipeline Execution 
+**Simplified Pipeline Management:**
+```bash
+# Execute the complete data pipeline
+make execute-pipeline
+
+# Monitor execution in AWS Console
+# - Step Functions Console: View workflow execution
+# - EventBridge Console: Check scheduled triggers
+# - CloudWatch Logs: Monitor Lambda and Glue execution
+```
+
+**Pipeline Components:**
+1. **Batch Ingestion:** Lambda function processes data from Snowflake
+2. **Data Cleaning:** Glue ETL job cleans and preprocesses data
+3. **Data Transformation:** Glue ETL job transforms and engineers features
+4. **Parallel Crawlers:** 5 concurrent crawlers catalog the processed data
+5. **Success/Failure:** Proper completion handling and error reporting
 
 ### GitHub Actions Deployment
 1. Push changes to the `main` branch to trigger CI/CD workflows.

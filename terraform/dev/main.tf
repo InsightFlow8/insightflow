@@ -3,6 +3,7 @@
 
 provider "aws" {
   region = var.aws_region
+  # profile = "insightflow"  # aws cli credential profile
 }
 
 data "aws_caller_identity" "current" {}
@@ -366,4 +367,20 @@ module "glue_crawler_transformation" {
   }
 
   depends_on = [module.s3_buckets, module.etl_data_transformation]
+}
+
+# =============================
+# Step Functions Module
+# =============================
+module "step_functions" {
+  source                             = "../modules/step_functions"
+  batch_ingestion_lambda_name        = module.batch_ingestion.batch_ingestion_lambda_function_name
+  etl_glue_job_name                  = module.etl_data_transformation.etl_glue_job_name
+  clean_glue_job_name                = module.etl_data_clean.data_clean_glue_job_name
+  crawler_names                      = module.glue_crawler_transformation.crawler_names
+  sf_eventbridge_schedule_expression = var.sf_eventbridge_schedule_expression
+
+  env = "dev"
+
+  depends_on = [module.batch_ingestion, module.etl_data_transformation, module.etl_data_clean, module.glue_crawler_transformation]
 }

@@ -1,0 +1,390 @@
+{
+  "Comment": "Data Pipeline: Lambda Batch Ingestion -> Glue Clean Data -> Glue ETL -> Parallel Crawlers",
+  "StartAt": "BatchIngestion",
+  "States": {
+    "BatchIngestion": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "${batch_ingestion_lambda_name}"
+      },
+      "ResultPath": "$.batchIngestionResult",
+      "Next": "CleanDataJob",
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "Next": "BatchIngestionFailed",
+          "ResultPath": "$.error"
+        }
+      ]
+    },
+    "BatchIngestionFailed": {
+      "Type": "Fail",
+      "Cause": "Batch ingestion failed",
+      "Error": "BatchIngestionError"
+    },
+    "CleanDataJob": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::glue:startJobRun.sync",
+      "Parameters": {
+        "JobName": "${clean_glue_job_name}"
+      },
+      "ResultPath": "$.cleanDataResult",
+      "Next": "ETLJob",
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "Next": "CleanDataFailed",
+          "ResultPath": "$.error"
+        }
+      ]
+    },
+    "CleanDataFailed": {
+      "Type": "Fail",
+      "Cause": "Clean data job failed",
+      "Error": "CleanDataError"
+    },
+    "ETLJob": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::glue:startJobRun.sync",
+      "Parameters": {
+        "JobName": "${etl_glue_job_name}"
+      },
+      "ResultPath": "$.etlResult",
+      "Next": "StartAllCrawlers",
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "Next": "ETLFailed",
+          "ResultPath": "$.error"
+        }
+      ]
+    },
+    "ETLFailed": {
+      "Type": "Fail",
+      "Cause": "ETL job failed",
+      "Error": "ETLError"
+    },
+    "StartAllCrawlers": {
+      "Type": "Parallel",
+      "Branches": [
+        {
+          "StartAt": "StartUserFeaturesCrawler",
+          "States": {
+            "StartUserFeaturesCrawler": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::aws-sdk:glue:startCrawler",
+              "Parameters": {
+                "Name": "${crawler_name_0}"
+              },
+              "ResultPath": "$.userFeaturesCrawlerResult",
+              "Next": "WaitForUserFeaturesCrawler"
+            },
+            "WaitForUserFeaturesCrawler": {
+              "Type": "Wait",
+              "Seconds": 30,
+              "Next": "CheckUserFeaturesCrawlerStatus"
+            },
+            "CheckUserFeaturesCrawlerStatus": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::aws-sdk:glue:getCrawler",
+              "Parameters": {
+                "Name": "${crawler_name_0}"
+              },
+              "ResultPath": "$.userFeaturesCrawlerStatus",
+              "Next": "UserFeaturesCrawlerComplete?"
+            },
+            "UserFeaturesCrawlerComplete?": {
+              "Type": "Choice",
+              "Choices": [
+                {
+                  "Variable": "$.userFeaturesCrawlerStatus.Crawler.State",
+                  "StringEquals": "READY",
+                  "Next": "UserFeaturesCrawlerSuccess"
+                },
+                {
+                  "Variable": "$.userFeaturesCrawlerStatus.Crawler.State",
+                  "StringEquals": "STOPPING",
+                  "Next": "WaitForUserFeaturesCrawler"
+                },
+                {
+                  "Variable": "$.userFeaturesCrawlerStatus.Crawler.State",
+                  "StringEquals": "RUNNING",
+                  "Next": "WaitForUserFeaturesCrawler"
+                },
+                {
+                  "Variable": "$.userFeaturesCrawlerStatus.Crawler.State",
+                  "StringEquals": "STOPPED",
+                  "Next": "UserFeaturesCrawlerSuccess"
+                }
+              ],
+              "Default": "UserFeaturesCrawlerFailed"
+            },
+            "UserFeaturesCrawlerSuccess": {
+              "Type": "Succeed"
+            },
+            "UserFeaturesCrawlerFailed": {
+              "Type": "Fail",
+              "Cause": "User Features Crawler failed",
+              "Error": "UserFeaturesCrawlerError"
+            }
+          }
+        },
+        {
+          "StartAt": "StartProductFeaturesCrawler",
+          "States": {
+            "StartProductFeaturesCrawler": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::aws-sdk:glue:startCrawler",
+              "Parameters": {
+                "Name": "${crawler_name_1}"
+              },
+              "ResultPath": "$.productFeaturesCrawlerResult",
+              "Next": "WaitForProductFeaturesCrawler"
+            },
+            "WaitForProductFeaturesCrawler": {
+              "Type": "Wait",
+              "Seconds": 30,
+              "Next": "CheckProductFeaturesCrawlerStatus"
+            },
+            "CheckProductFeaturesCrawlerStatus": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::aws-sdk:glue:getCrawler",
+              "Parameters": {
+                "Name": "${crawler_name_1}"
+              },
+              "ResultPath": "$.productFeaturesCrawlerStatus",
+              "Next": "ProductFeaturesCrawlerComplete?"
+            },
+            "ProductFeaturesCrawlerComplete?": {
+              "Type": "Choice",
+              "Choices": [
+                {
+                  "Variable": "$.productFeaturesCrawlerStatus.Crawler.State",
+                  "StringEquals": "READY",
+                  "Next": "ProductFeaturesCrawlerSuccess"
+                },
+                {
+                  "Variable": "$.productFeaturesCrawlerStatus.Crawler.State",
+                  "StringEquals": "STOPPING",
+                  "Next": "WaitForProductFeaturesCrawler"
+                },
+                {
+                  "Variable": "$.productFeaturesCrawlerStatus.Crawler.State",
+                  "StringEquals": "RUNNING",
+                  "Next": "WaitForProductFeaturesCrawler"
+                },
+                {
+                  "Variable": "$.productFeaturesCrawlerStatus.Crawler.State",
+                  "StringEquals": "STOPPED",
+                  "Next": "ProductFeaturesCrawlerSuccess"
+                }
+              ],
+              "Default": "ProductFeaturesCrawlerFailed"
+            },
+            "ProductFeaturesCrawlerSuccess": {
+              "Type": "Succeed"
+            },
+            "ProductFeaturesCrawlerFailed": {
+              "Type": "Fail",
+              "Cause": "Product Features Crawler failed",
+              "Error": "ProductFeaturesCrawlerError"
+            }
+          }
+        },
+        {
+          "StartAt": "StartUPIFeaturesCrawler",
+          "States": {
+            "StartUPIFeaturesCrawler": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::aws-sdk:glue:startCrawler",
+              "Parameters": {
+                "Name": "${crawler_name_2}"
+              },
+              "ResultPath": "$.upiFeaturesCrawlerResult",
+              "Next": "WaitForUPIFeaturesCrawler"
+            },
+            "WaitForUPIFeaturesCrawler": {
+              "Type": "Wait",
+              "Seconds": 30,
+              "Next": "CheckUPIFeaturesCrawlerStatus"
+            },
+            "CheckUPIFeaturesCrawlerStatus": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::aws-sdk:glue:getCrawler",
+              "Parameters": {
+                "Name": "${crawler_name_2}"
+              },
+              "ResultPath": "$.upiFeaturesCrawlerStatus",
+              "Next": "UPIFeaturesCrawlerComplete?"
+            },
+            "UPIFeaturesCrawlerComplete?": {
+              "Type": "Choice",
+              "Choices": [
+                {
+                  "Variable": "$.upiFeaturesCrawlerStatus.Crawler.State",
+                  "StringEquals": "READY",
+                  "Next": "UPIFeaturesCrawlerSuccess"
+                },
+                {
+                  "Variable": "$.upiFeaturesCrawlerStatus.Crawler.State",
+                  "StringEquals": "STOPPING",
+                  "Next": "WaitForUPIFeaturesCrawler"
+                },
+                {
+                  "Variable": "$.upiFeaturesCrawlerStatus.Crawler.State",
+                  "StringEquals": "RUNNING",
+                  "Next": "WaitForUPIFeaturesCrawler"
+                },
+                {
+                  "Variable": "$.upiFeaturesCrawlerStatus.Crawler.State",
+                  "StringEquals": "STOPPED",
+                  "Next": "UPIFeaturesCrawlerSuccess"
+                }
+              ],
+              "Default": "UPIFeaturesCrawlerFailed"
+            },
+            "UPIFeaturesCrawlerSuccess": {
+              "Type": "Succeed"
+            },
+            "UPIFeaturesCrawlerFailed": {
+              "Type": "Fail",
+              "Cause": "UPI Features Crawler failed",
+              "Error": "UPIFeaturesCrawlerError"
+            }
+          }
+        },
+        {
+          "StartAt": "StartProductFeaturesUnionCrawler",
+          "States": {
+            "StartProductFeaturesUnionCrawler": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::aws-sdk:glue:startCrawler",
+              "Parameters": {
+                "Name": "${crawler_name_3}"
+              },
+              "ResultPath": "$.productFeaturesUnionCrawlerResult",
+              "Next": "WaitForProductFeaturesUnionCrawler"
+            },
+            "WaitForProductFeaturesUnionCrawler": {
+              "Type": "Wait",
+              "Seconds": 30,
+              "Next": "CheckProductFeaturesUnionCrawlerStatus"
+            },
+            "CheckProductFeaturesUnionCrawlerStatus": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::aws-sdk:glue:getCrawler",
+              "Parameters": {
+                "Name": "${crawler_name_3}"
+              },
+              "ResultPath": "$.productFeaturesUnionCrawlerStatus",
+              "Next": "ProductFeaturesUnionCrawlerComplete?"
+            },
+            "ProductFeaturesUnionCrawlerComplete?": {
+              "Type": "Choice",
+              "Choices": [
+                {
+                  "Variable": "$.productFeaturesUnionCrawlerStatus.Crawler.State",
+                  "StringEquals": "READY",
+                  "Next": "ProductFeaturesUnionCrawlerSuccess"
+                },
+                {
+                  "Variable": "$.productFeaturesUnionCrawlerStatus.Crawler.State",
+                  "StringEquals": "STOPPING",
+                  "Next": "WaitForProductFeaturesUnionCrawler"
+                },
+                {
+                  "Variable": "$.productFeaturesUnionCrawlerStatus.Crawler.State",
+                  "StringEquals": "RUNNING",
+                  "Next": "WaitForProductFeaturesUnionCrawler"
+                },
+                {
+                  "Variable": "$.productFeaturesUnionCrawlerStatus.Crawler.State",
+                  "StringEquals": "STOPPED",
+                  "Next": "ProductFeaturesUnionCrawlerSuccess"
+                }
+              ],
+              "Default": "ProductFeaturesUnionCrawlerFailed"
+            },
+            "ProductFeaturesUnionCrawlerSuccess": {
+              "Type": "Succeed"
+            },
+            "ProductFeaturesUnionCrawlerFailed": {
+              "Type": "Fail",
+              "Cause": "Product Features Union Crawler failed",
+              "Error": "ProductFeaturesUnionCrawlerError"
+            }
+          }
+        },
+        {
+          "StartAt": "StartUPIFeaturesUnionCrawler",
+          "States": {
+            "StartUPIFeaturesUnionCrawler": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::aws-sdk:glue:startCrawler",
+              "Parameters": {
+                "Name": "${crawler_name_4}"
+              },
+              "ResultPath": "$.upiFeaturesUnionCrawlerResult",
+              "Next": "WaitForUPIFeaturesUnionCrawler"
+            },
+            "WaitForUPIFeaturesUnionCrawler": {
+              "Type": "Wait",
+              "Seconds": 30,
+              "Next": "CheckUPIFeaturesUnionCrawlerStatus"
+            },
+            "CheckUPIFeaturesUnionCrawlerStatus": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::aws-sdk:glue:getCrawler",
+              "Parameters": {
+                "Name": "${crawler_name_4}"
+              },
+              "ResultPath": "$.upiFeaturesUnionCrawlerStatus",
+              "Next": "UPIFeaturesUnionCrawlerComplete?"
+            },
+            "UPIFeaturesUnionCrawlerComplete?": {
+              "Type": "Choice",
+              "Choices": [
+                {
+                  "Variable": "$.upiFeaturesUnionCrawlerStatus.Crawler.State",
+                  "StringEquals": "READY",
+                  "Next": "UPIFeaturesUnionCrawlerSuccess"
+                },
+                {
+                  "Variable": "$.upiFeaturesUnionCrawlerStatus.Crawler.State",
+                  "StringEquals": "STOPPING",
+                  "Next": "WaitForUPIFeaturesUnionCrawler"
+                },
+                {
+                  "Variable": "$.upiFeaturesUnionCrawlerStatus.Crawler.State",
+                  "StringEquals": "RUNNING",
+                  "Next": "WaitForUPIFeaturesUnionCrawler"
+                },
+                {
+                  "Variable": "$.upiFeaturesUnionCrawlerStatus.Crawler.State",
+                  "StringEquals": "STOPPED",
+                  "Next": "UPIFeaturesUnionCrawlerSuccess"
+                }
+              ],
+              "Default": "UPIFeaturesUnionCrawlerFailed"
+            },
+            "UPIFeaturesUnionCrawlerSuccess": {
+              "Type": "Succeed"
+            },
+            "UPIFeaturesUnionCrawlerFailed": {
+              "Type": "Fail",
+              "Cause": "UPI Features Union Crawler failed",
+              "Error": "UPIFeaturesUnionCrawlerError"
+            }
+          }
+        }
+      ],
+      "ResultPath": "$.crawlersResult",
+      "Next": "PipelineSuccess"
+    },
+    "PipelineSuccess": {
+      "Type": "Succeed",
+      "Comment": "Data pipeline completed successfully"
+    }
+  }
+}

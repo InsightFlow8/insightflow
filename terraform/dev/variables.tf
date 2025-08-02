@@ -344,3 +344,12 @@ variable "transformation_crawler_schedule" {
   type        = string
   default     = "cron(0 17 30 * ? *)" # UTC时间每月30日下午5点运行，在 transformation job 完成后
 }
+
+# =============================
+# Step Functions Variables
+# =============================
+variable "sf_eventbridge_schedule_expression" {
+  description = "Schedule expression for EventBridge rule (e.g., 'rate(1 hour)' or 'cron(0 2 * * ? *)' (2 AM every day))"
+  type        = string
+  default     = "cron(0 16 30 * ? *)"
+}

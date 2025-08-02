@@ -7,10 +7,7 @@ terraform {
     region         = "ap-southeast-2"
     dynamodb_table = "insightflow_imba_group"
     encrypt        = true
+    profile        = "insightflow"
   }
 }
-# terraform {
-#   backend "local" {
-#     path = "terraform.tfstate"
-#   }
-# }
+

@@ -48,22 +48,22 @@ output "vpc_id" {
 # =============================
 # ETL Data Clean Outputs
 # =============================
-output "etl_glue_job_name" {
+output "clean_glue_job_name" {
   description = "Name of the ETL Data Clean Glue Job"
-  value       = module.etl_data_clean.glue_job_name
+  value       = module.etl_data_clean.data_clean_glue_job_name
 }
 
-output "etl_glue_job_arn" {
+output "clean_glue_job_arn" {
   description = "ARN of the ETL Data Clean Glue Job"
-  value       = module.etl_data_clean.glue_job_arn
+  value       = module.etl_data_clean.data_clean_glue_job_arn
 }
 
-output "etl_iam_role_arn" {
+output "clean_iam_role_arn" {
   description = "ARN of the IAM Role for ETL Data Clean Glue Job"
   value       = module.etl_data_clean.iam_role_arn
 }
 
-output "etl_iam_role_name" {
+output "clean_iam_role_name" {
   description = "Name of the IAM Role for ETL Data Clean Glue Job"
   value       = module.etl_data_clean.iam_role_name
 }
@@ -97,3 +97,16 @@ output "etl_iam_role_name" {
 #   description = "S3 path for the combined table output"
 #   value       = var.table_combine_output_path
 # }
+
+# =============================
+# Step Functions Outputs
+# =============================
+output "step_functions_state_machine_arn" {
+  description = "ARN of the Step Functions state machine"
+  value       = module.step_functions.step_functions_state_machine_arn
+}
+
+output "step_functions_state_machine_name" {
+  description = "Name of the Step Functions state machine"
+  value       = module.step_functions.step_functions_state_machine_name
+}

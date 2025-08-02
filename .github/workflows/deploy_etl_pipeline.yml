@@ -287,6 +287,26 @@ jobs:
             cd terraform/dev
             terraform apply -auto-approve -target=module.glue_crawler_transformation
 
+      # --- Step Functions ---d
+      - name: Terraform Plan (Step Functions Only)
+        run: terraform plan -input=false -target=module.step_functions
+        working-directory: terraform/dev
+
+      - name: Terraform Apply (Step Functions Only) with Retry
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 15
+          max_attempts: 3
+          retry_wait_seconds: 60
+          command: |
+            cd terraform/dev
+            terraform apply -auto-approve -target=module.step_functions
+
+      # --- Trigger Step Functions ---
+      - name: Trigger Step Functions Workflow
+        run: |
+          make execute-pipeline
+          
       # =============================
       # Temporarily Disabled Modules
       # =============================
