@@ -38,11 +38,13 @@
 - **Port:** 8501
 - **URL:** http://localhost:8501
 - **Features:** Dashboard with analytics and chat interface
+- **Documentation:** [Frontend README](frontend/README.md)
 
 ### Backend (FastAPI)
 - **Port:** 8000
 - **URL:** http://localhost:8000
 - **Features:** AI chat, ML models, vector search
+- **Documentation:** [Backend README](backend/README.md)
 
 ### Qdrant (Vector Database)
 - **Port:** 6333
@@ -109,24 +111,29 @@ imba_data/
 └── order_products__train.csv.gz  # ~7MB (compressed)
 ```
 
-### Alternative: Sample Data
-For testing without large files, create sample data:
-```python
-import pandas as pd
+### Data Filtering for Testing
+For efficient testing, the data loaders automatically filter the data:
+- **User ID restriction**: Only users with `user_id < 10000` are loaded
+- **Product restriction**: Only products with `product_id < 1000` are used for vector store
+- This significantly reduces memory usage and processing time
 
-# Create sample orders
-sample_orders = pd.DataFrame({
-    'order_id': range(1, 101),
-    'user_id': range(1, 21) * 5,
-    'order_number': range(1, 101),
-    'order_dow': [1, 2, 3, 4, 5] * 20,
-    'order_hour_of_day': [9, 10, 11, 12, 13] * 20,
-    'days_since_prior_order': [7, 14, 21, 28, 35] * 20
-})
+### Memory Configuration
+The docker-compose.yml specifies memory limits for each service:
+- **Backend**: 4GB limit, 2GB reservation
+- **Frontend**: 4GB limit, 2GB reservation
 
-# Save to imba_data directory
-sample_orders.to_csv('../imba_data/orders.csv', index=False)
+**For lower memory systems**, you can reduce these limits:
+```yaml
+# In docker-compose.yml, modify the deploy section:
+deploy:
+  resources:
+    limits:
+      memory: 2G  # Reduce from 4G
+    reservations:
+      memory: 1G  # Reduce from 2G
 ```
+
+
 
 ## Troubleshooting
 
@@ -165,3 +172,11 @@ sample_orders.to_csv('../imba_data/orders.csv', index=False)
    docker-compose down
    docker-compose up --build -d
    ```
+
+## Documentation
+
+For detailed information about each component:
+
+- **[Backend Documentation](backend/README.md)** - FastAPI backend with AI chat, ML models, and vector search
+- **[Frontend Documentation](frontend/README.md)** - Streamlit dashboard with analytics and chat interface
+- **[Frontend Structure Guide](frontend/README_STRUCTURE.md)** - Detailed breakdown of frontend components and architecture
