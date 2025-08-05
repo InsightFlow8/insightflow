@@ -216,3 +216,28 @@ For detailed information about each component:
 - **[Backend Documentation](backend/README.md)** - FastAPI backend with AI chat, ML models, and S3Vectors search
 - **[Frontend Documentation](frontend/README.md)** - Streamlit dashboard with analytics and chat interface
 - **[Frontend Structure Guide](frontend/README_STRUCTURE.md)** - Detailed breakdown of frontend components and architecture
+
+## Amazon S3 Vectors Pricing Breakdown
+
+1. Data Upload / Ingestion
+	-	$0.20 per GB ingested into S3 vector indexes via PutVectors  ￼
+
+2. Storage
+	-	$0.06 per GB per month for storing vector data in S3 Vectors  ￼
+
+3. Query Processing
+	-	Charged based on number of queries and data scanned.
+	-	For example (from AWS case study):
+	-	With 400 million vectors, 40 indexes, 10 million queries:
+	-	~$996.62 in query cost,
+	-	$78.46 ingest,
+	-	$141.22 storage per month
+
+#### Example Use Case Cost Estimate
+Suppose you store 60 GB of vector data (e.g. 10 million vectors of ~1,536‑dim) and run 1 million similarity queries per month:
+
+| **Component** | **Usage**         | **Unit Price**    | **Total Cost**    |
+| ------------- | ----------------- | ----------------- | ----------------- |
+| **Ingest**    | 60 GB             | $0.20 / GB        | **$12.00**        |
+| **Storage**   | 60 GB (per month) | $0.06 / GB        | **$3.60 / month** |
+| **Queries**   | 1,000,000 queries | ≈ $0.004 / 1K req | **$4.00**         |
