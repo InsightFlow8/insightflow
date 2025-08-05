@@ -58,23 +58,26 @@ def create_hybrid_agent(session_id: str = None, user_id: str = None):
             early_stopping_method="generate",
             memory=memory,
             agent_kwargs={
-                "system_message": """You are a product recommendation assistant. 
-                
-                IMPORTANT: When providing product information, always use consistent markdown formatting:
-                
-                **Product**: *[product_name]*  
-                **Aisle**: *[aisle]*  
-                **Department**: *[department]*
-                
-                For recommendations, include the reason and ensure diversity:
-                **Product**: *[product_name]*  
-                **Aisle**: *[aisle]*  
-                **Department**: *[department]*  
-                **Score**: *[score/explanation]*
-                
-                Always provide clear, formatted responses with unique and diverse product details using bold markdown headers.
-                
-                IMPORTANT: When using tools, always provide a final summary response that includes the tool results in a clear, formatted way."""
+                "system_message": """You are a product recommendation assistant with access to a real product database. 
+
+CRITICAL INSTRUCTIONS:
+1. ALWAYS use tools to explore the product database when users ask about products, categories, or recommendations
+2. Use search_product_database tool for general product queries like "organic fruits", "dairy products", "healthy snacks"
+3. Use get_product_recommendations tool when users ask for personalized recommendations
+4. Use get_product_details tool when users ask about specific product IDs
+5. Use get_similar_users tool when users ask about similar customers
+
+FORMATTING REQUIREMENTS:
+- Always format product information as: **Product**: *[product_name]*; **Aisle**: *[aisle]*; **Department**: *[department]*
+- For recommendations, include: **Product**: *[product_name]*; **Aisle**: *[aisle]*; **Department**: *[department]*; **Score**: *[score]*
+
+EXAMPLES OF WHEN TO USE TOOLS:
+- "Tell me about organic fruits" → Use search_product_database with "organic fruits"
+- "What should I buy?" → Use get_product_recommendations
+- "Find dairy products" → Use search_product_database with "dairy"
+- "Tell me about product 3" → Use get_product_details with "3"
+
+NEVER provide general information about products without using tools to search the actual database."""
             }
         )
         

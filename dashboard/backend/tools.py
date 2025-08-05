@@ -183,20 +183,31 @@ def create_enhanced_tools(vectorstore, user_id=None):
                 if len(parts) >= 2:
                     search_query = parts[0].strip()
                     count = parts[1].strip()
-                    top_k = int(count)
+                    try:
+                        top_k_int = int(count)
+                    except ValueError:
+                        top_k_int = 5  # default if parsing fails
                 else:
                     search_query = query
-                    top_k = int(top_k)
+                    try:
+                        top_k_int = int(top_k)
+                    except ValueError:
+                        top_k_int = 5  # default if parsing fails
             else:
                 search_query = query
-                top_k = int(top_k)
+                try:
+                    top_k_int = int(top_k)
+                except ValueError:
+                    top_k_int = 5  # default if parsing fails
+
+            logger.info(f"Searching for '{search_query}' with top_k={top_k_int}")
 
             # Use cached vector store
             s3_store = get_cached_vector_store()
             if s3_store is None:
                 return "Vector store not initialized. Please try again later."
             
-            results = s3_store.search_similar_products(search_query, top_k)
+            results = s3_store.search_similar_products(search_query, top_k_int)
             
             if not results:
                 return f"No products found matching: {search_query}"
@@ -209,9 +220,8 @@ def create_enhanced_tools(vectorstore, user_id=None):
                 result += f"{i}. **Product**: *{metadata.get('product_name', 'Unknown Product')}*; **Aisle**: *{metadata.get('aisle', 'Unknown')}*; **Department**: *{metadata.get('department', 'Unknown')}*\n\n"
             
             return result
-        except ValueError:
-            return f"Error: Invalid count '{top_k}'. Please provide a valid number."
         except Exception as e:
+            logger.error(f"Error searching products: {e}")
             return f"Error searching products: {str(e)}"
     
     def get_product_details(product_id: str) -> str:
@@ -304,10 +314,12 @@ def create_enhanced_tools(vectorstore, user_id=None):
         name="get_product_recommendations",
         description=f"""Get personalized unique product recommendations for user {user_id if user_id else '[USER_ID]'}. 
         
+        ALWAYS use this tool when users ask for recommendations, suggestions, or what they should buy.
+        Examples: "What should I buy?", "Give me recommendations", "Suggest products for me"
+        
         Format output as: **Product**: *[name]*; **Aisle**: *[aisle]*; **Department**: *[department]*; **Score**: *[score]*
         
         IMPORTANT: Ensure recommendations are unique and diverse, avoiding duplicate product names.
-        Use this when users ask for recommendations, suggestions, or what they should buy. 
         Pass the user ID '{user_id}' as the first parameter and the number of recommendations as the second parameter (e.g., '10' for 10 products).""",
         func=get_recommendations_with_count
     )
@@ -316,10 +328,12 @@ def create_enhanced_tools(vectorstore, user_id=None):
         name="search_product_database",
         description="""Search the product database for information about products, categories, departments, or general product queries. 
         
+        ALWAYS use this tool when users ask about specific products, categories, or general product information.
+        Examples: "Tell me about organic fruits", "Find dairy products", "Show me beverages", "What fruits do you have?"
+        
         Format output as: **Product**: *[name]*; **Aisle**: *[aisle]*; **Department**: *[department]*
         
         IMPORTANT: Provide diverse and unique product results when possible.
-        Use this when users ask about specific products, categories, or general product information.
         Pass the search query as the first parameter and the number of results as the second parameter (e.g., 'frozen meals, 10' for 10 frozen meal products).""",
         func=enhanced_search_tool
     )
@@ -327,6 +341,9 @@ def create_enhanced_tools(vectorstore, user_id=None):
     product_details_tool = Tool(
         name="get_product_details",
         description="""Get detailed information about a specific product by its ID. 
+        
+        ALWAYS use this tool when users ask about specific product IDs or want details about a particular product.
+        Examples: "Tell me about product 3", "What is product 45000?", "Show me details for product 123"
         
         Format output as: **Product**: *[name]*; **Aisle**: *[aisle]*; **Department**: *[department]*
         
@@ -337,19 +354,22 @@ def create_enhanced_tools(vectorstore, user_id=None):
     )
     
     similar_users_tool = Tool(
-    name="get_similar_users",
-    description=f"""Get similar users to the given user_id. 
-    
-    Pass the user ID '{user_id if user_id else '[USER_ID]'}' as the first parameter and the number of similar users as the second parameter (e.g., '7' for 7 users).
-    Use this when users ask for similar users, customers, or user recommendations.""",
-    func=get_similar_users_tool
+        name="get_similar_users",
+        description=f"""Get similar users to the given user_id. 
+        
+        ALWAYS use this tool when users ask for similar users, customers, or user recommendations.
+        Examples: "Find users like me", "Who are similar customers?", "Show me similar users to user 123"
+        
+        Pass the user ID '{user_id if user_id else '[USER_ID]'}' as the first parameter and the number of similar users as the second parameter (e.g., '7' for 7 users).""",
+        func=get_similar_users_tool
     )
 
     user_info_tool = Tool(
         name="get_user_info",
         description="""Get current user information and status.
         
-        Use this when users ask about their user ID, who they are, or their current login status.
+        ALWAYS use this tool when users ask about their user ID, who they are, or their current login status.
+        Examples: "Who am I?", "What's my user ID?", "Am I logged in?"
         No parameters needed - returns current user information.""",
         func=get_user_info_tool
     )
