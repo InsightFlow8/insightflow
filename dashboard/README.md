@@ -1,3 +1,9 @@
+# Summary
+A dashboard with a comprehensive Customer Behavior Analysis Dashboard with AI-powered product recommendations, built using Streamlit frontend, FastAPI backend, and AWS S3Vectors for vector storage.
+
+![](analysis.png)
+![](chat_interface.png)
+
 # Docker Setup Guide
 
 ## Quick Start
