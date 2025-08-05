@@ -1,21 +1,5 @@
-# docker-compose.yml
+# dashboard/docker-compose.yml
 services:
-  # Vector Database
-  qdrant:
-    image: qdrant/qdrant
-    ports:
-      - "6333:6333"
-    volumes:
-      - qdrant_data:/qdrant/storage
-    environment:
-      - QDRANT__SERVICE__HTTP_PORT=6333
-    # Remove the problematic health check for now
-    # healthcheck:
-    #   test: ["CMD", "curl", "-f", "http://localhost:6333/health"]
-    #   interval: 30s
-    #   timeout: 10s
-    #   retries: 3
-
   # Backend API Service
   backend:
     build:
@@ -28,17 +12,22 @@ services:
       - ./data:/app/data
       - ../imba_data:/app/imba_data
       - model_cache:/app/backend/als_model.pkl
-    depends_on:
-      - qdrant  # Simplified dependency
     env_file:
-      - ./backend/.env
+      - .env
     environment:
-      - QDRANT_HOST=qdrant
-      - QDRANT_PORT=6333
       - HOST=0.0.0.0
       - PORT=8000
       - LOG_LEVEL=INFO
       - OPENBLAS_NUM_THREADS=1  # Fix OpenBLAS warning
+      # OPENAI API KEY
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      # S3 Vectors configuration - now using .env file
+      - S3_VECTORS_BUCKET=${S3_VECTORS_BUCKET}
+      - S3_VECTORS_INDEX=${S3_VECTORS_INDEX}
+      # AWS credentials - using .env file
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION}
     command: ["python", "backend/main.py"]
     deploy:
       resources:
@@ -66,7 +55,7 @@ services:
       - ./data:/app/data
       - ../imba_data:/app/imba_data
     depends_on:
-      - backend  # Simplified dependency
+      - backend
     environment:
       - STREAMLIT_SERVER_PORT=8501
       - STREAMLIT_SERVER_ADDRESS=0.0.0.0
@@ -75,7 +64,7 @@ services:
       - STREAMLIT_SERVER_ENABLE_XSRF_PROTECTION=false
       - STREAMLIT_SERVER_MAX_UPLOAD_SIZE=200
       - STREAMLIT_BROWSER_GATHER_USAGE_STATS=false
-      - BACKEND_URL=http://backend:8000  # Connect to backend service
+      - BACKEND_URL=http://backend:8000
     command: ["streamlit", "run", "frontend/Analysis.py", "--server.port=8501", "--server.address=0.0.0.0"]
     deploy:
       resources:
@@ -91,5 +80,4 @@ services:
     restart: unless-stopped
 
 volumes:
-  qdrant_data:
   model_cache:

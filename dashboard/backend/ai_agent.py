@@ -5,7 +5,7 @@ from langchain_openai import ChatOpenAI
 from langchain.agents import initialize_agent, AgentType
 from langchain.memory import ConversationBufferMemory
 from tools import create_enhanced_tools
-from vector_store import get_vector_store
+from vector_store_s3 import get_s3_vector_store
 
 logger = logging.getLogger(__name__)
 
@@ -35,13 +35,13 @@ def create_hybrid_agent(session_id: str = None, user_id: str = None):
                 conversation_sessions[session_id] = memory
             logger.info(f"Created new memory for session: {session_id}")
         
-        # Get vector store
-        vectorstore = get_vector_store()
+        # Get S3 Vectors store
+        vectorstore = get_s3_vector_store()
         if vectorstore is None:
-            logger.error("Vector store is None - cannot create tools")
-            raise Exception("Vector store not initialized")
+            logger.error("S3 Vectors store is None - cannot create tools")
+            raise Exception("S3 Vectors store not initialized")
         
-        logger.info("Vector store retrieved successfully")
+        logger.info("S3 Vectors store retrieved successfully")
         
         # Create tools dynamically with user_id context
         tools = create_enhanced_tools(vectorstore, user_id)

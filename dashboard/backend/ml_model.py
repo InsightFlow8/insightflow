@@ -108,21 +108,62 @@ def load_als_model():
         sparse_matrix = als_data['sparse_matrix']
         
         logger.info("✅ Loaded ALS model successfully")
+        logger.info(f"📊 Model info: {len(user_id_map)} users, {len(product_id_map)} products")
         return model, user_id_map, product_id_map, reverse_user_id_map, reverse_product_id_map, sparse_matrix
         
     except Exception as e:
         logger.error(f"Error loading ALS model: {e}")
         raise
 
+def get_popular_products(N=10):
+    """Get popular products as fallback recommendations"""
+    global product_id_map, sparse_matrix
+    
+    if sparse_matrix is None:
+        logger.warning("Sparse matrix not available for popular products")
+        return []
+    
+    try:
+        # Calculate product popularity (sum of purchases across all users)
+        product_popularity = np.array(sparse_matrix.sum(axis=0)).flatten()
+        
+        # Get top N popular products
+        top_product_indices = np.argsort(product_popularity)[-N:][::-1]
+        
+        # Convert to product IDs and create recommendations
+        popular_products = []
+        for idx in top_product_indices:
+            if product_popularity[idx] > 0:  # Only include products with purchases
+                product_id = product_id_map[idx]
+                score = float(product_popularity[idx])
+                popular_products.append((product_id, score))
+        
+        logger.info(f"✅ Generated {len(popular_products)} popular product recommendations")
+        return popular_products
+        
+    except Exception as e:
+        logger.error(f"Error getting popular products: {e}")
+        return []
+
 def recommend_for_user(user_id, N=10):
     """Calls the ALS model's recommend method to get the top-N recommended products for this user."""
     global model, reverse_user_id_map, product_id_map, sparse_matrix
     
     if model is None:
-        logger.warning("ML model not initialized, returning empty recommendations")
-        return []
+        logger.warning("ML model not initialized, returning popular products")
+        return get_popular_products(N)
     
     try:
+        # Ensure user_id is an int for lookup
+        if isinstance(user_id, str):
+            user_id = user_id.strip().strip("'\"")
+            user_id = int(user_id)
+        
+        # Check if user exists in training data
+        if user_id not in reverse_user_id_map:
+            logger.warning(f"User {user_id} not found in training data, using popular products")
+            return get_popular_products(N)
+        
         user_idx = reverse_user_id_map[user_id]
         
         user_row = sparse_matrix.tocsr()[user_idx]
@@ -130,10 +171,17 @@ def recommend_for_user(user_id, N=10):
         # recommended is a list of (product_idx, score)
         item_indices, scores = recommended
 
-        return [(product_id_map[pid], float(score)) for pid, score in zip(item_indices, scores)]
+        recommendations = [(product_id_map[pid], float(score)) for pid, score in zip(item_indices, scores)]
+        logger.info(f"✅ Generated {len(recommendations)} personalized recommendations for user {user_id}")
+        return recommendations
+        
+    except KeyError as e:
+        logger.warning(f"User {user_id} not found in model mappings, using popular products")
+        return get_popular_products(N)
     except Exception as e:
         logger.error(f"Error getting recommendations for user {user_id}: {e}")
-        return []
+        logger.info("Falling back to popular products")
+        return get_popular_products(N)
 
 def get_similar_users(user_id, N=5):
     """Return the top-N most similar users to the given user_id."""
@@ -148,6 +196,12 @@ def get_similar_users(user_id, N=5):
         if isinstance(user_id, str):
             user_id = user_id.strip().strip("'\"")
             user_id = int(user_id)
+        
+        # Check if user exists in training data
+        if user_id not in reverse_user_id_map:
+            logger.warning(f"User {user_id} not found in training data")
+            return []
+        
         user_idx = reverse_user_id_map[user_id]
         user_vec = model.user_factors[user_idx]
         all_vecs = model.user_factors
@@ -158,6 +212,9 @@ def get_similar_users(user_id, N=5):
         top_indices = np.argsort(similarities)[-N:][::-1]
         similar_users = [user_id_map[idx] for idx in top_indices]
         return similar_users
+    except KeyError as e:
+        logger.warning(f"User {user_id} not found in model mappings")
+        return []
     except Exception as e:
         logger.error(f"Error getting similar users for user {user_id}: {e}")
         return []

@@ -58,7 +58,7 @@ def render_chat_interface():
                     response = requests.post(
                         f"{backend_url}/chat",
                         json=request_data,
-                        timeout=120
+                        timeout=300
                     )
             
             if response.status_code == 200:
@@ -150,7 +150,7 @@ def render_chat_interface():
     # Example queries in a horizontal layout
     example_queries = [
         "What should I buy?",
-        "suggest products",
+        "suggest 3 products",
         "Tell me about organic fruits",
         "Find dairy products",
         "What are some healthy snacks?",

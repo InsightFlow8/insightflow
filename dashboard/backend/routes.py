@@ -5,7 +5,7 @@ from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
 from ai_agent import process_chat_query, clear_conversation_history
-from vector_store import initialize_vector_store, get_vector_store
+from vector_store_s3 import initialize_s3_vector_store, get_s3_vector_store, search_products_s3
 from ml_model import initialize_ml_model
 from data_loader import get_all_data_for_frontend
 from analysis import create_product_affinity_simple, create_customer_journey_flow, create_lifetime_value_analysis, create_churn_analysis
@@ -18,18 +18,18 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """
-    Initialize the vector store, ALS model, and tools
+    Initialize the S3 Vectors store, ALS model, and tools
     """
     try:
         logger.info("🚀 Starting system initialization...")
         
-        # Initialize vector store
-        logger.info("📚 Initializing vector store...")
+        # Initialize S3 Vectors store
+        logger.info("📚 Initializing S3 Vectors store...")
         try:
-            initialize_vector_store()
-            logger.info("✅ Vector store initialized successfully")
+            initialize_s3_vector_store()
+            logger.info("✅ S3 Vectors store initialized successfully")
         except Exception as e:
-            logger.error(f"❌ Vector store initialization failed: {e}")
+            logger.error(f"❌ S3 Vectors store initialization failed: {e}")
             logger.warning("⚠️ Continuing without vector store - chat functionality will be limited")
         
         # Initialize ML model
@@ -45,7 +45,6 @@ async def lifespan(app: FastAPI):
         
     except Exception as e:
         logger.error(f"❌ Fatal error during startup: {e}")
-        # Don't exit immediately, let the app start and handle errors gracefully
         logger.error("Continuing with startup despite initialization errors...")
     
     yield
@@ -69,13 +68,6 @@ async def get_data():
         
         # Clean all DataFrames
         logger.info("Cleaning DataFrames for JSON serialization...")
-        
-        # Debug: Log DataFrame info before cleaning
-        logger.info(f"Main DataFrame dtypes: {df.dtypes.to_dict()}")
-        logger.info(f"Orders DataFrame dtypes: {orders.dtypes.to_dict()}")
-        logger.info(f"Products DataFrame dtypes: {products.dtypes.to_dict()}")
-        logger.info(f"Departments DataFrame dtypes: {departments.dtypes.to_dict()}")
-        logger.info(f"Aisles DataFrame dtypes: {aisles.dtypes.to_dict()}")
         
         df = clean_dataframe(df)
         orders = clean_dataframe(orders)
@@ -107,9 +99,6 @@ async def get_data():
         
     except Exception as e:
         logger.error(f"Data endpoint error: {e}")
-        logger.error(f"Error type: {type(e).__name__}")
-        import traceback
-        logger.error(f"Traceback: {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/analysis/{analysis_type}")
@@ -122,7 +111,6 @@ async def get_analysis(analysis_type: str, request: Request):
         if analysis_type == "product_affinity":
             top_products = data.get('top_products', 20)
             result = create_product_affinity_simple(df, top_products)
-            # product_affinity returns (pair_counts, product_names, product_counts)
             return JSONResponse({
                 "result": {
                     "pair_counts": dict(result[0]),
@@ -132,11 +120,9 @@ async def get_analysis(analysis_type: str, request: Request):
             })
         elif analysis_type == "customer_journey":
             result = create_customer_journey_flow(df)
-            # customer_journey returns a single figure
             return JSONResponse({"result": result.to_dict()})
         elif analysis_type == "lifetime_value":
             result = create_lifetime_value_analysis(df)
-            # lifetime_value returns (fig, customer_metrics)
             return JSONResponse({
                 "result": {
                     "figure": result[0].to_dict(),
@@ -145,7 +131,6 @@ async def get_analysis(analysis_type: str, request: Request):
             })
         elif analysis_type == "churn":
             result = create_churn_analysis(df)
-            # churn returns (fig, churn_indicators)
             return JSONResponse({
                 "result": {
                     "figure": result[0].to_dict(),
@@ -165,7 +150,7 @@ async def health_check():
     Health check endpoint to verify system initialization
     """
     try:
-        vectorstore = get_vector_store()
+        vectorstore = get_s3_vector_store()
         if vectorstore is None:
             return JSONResponse({
                 "status": "initializing",
@@ -175,7 +160,8 @@ async def health_check():
         return JSONResponse({
             "status": "healthy",
             "message": "System is ready",
-            "vectorstore_initialized": vectorstore is not None
+            "vectorstore_initialized": vectorstore is not None,
+            "vectorstore_type": "S3_Vectors"
         })
     except Exception as e:
         logger.error(f"Health check error: {e}")
@@ -227,15 +213,15 @@ async def hybrid_agent_chat(request: Request):
             logger.error("No query provided")
             raise HTTPException(status_code=400, detail="Query is required.")
 
-        # Check if vector store is initialized
-        logger.info("Checking vector store initialization...")
-        vectorstore = get_vector_store()
+        # Check if S3 Vectors store is initialized
+        logger.info("Checking S3 Vectors store initialization...")
+        vectorstore = get_s3_vector_store()
         if vectorstore is None:
-            logger.warning("Vector store not initialized")
+            logger.warning("S3 Vectors store not initialized")
             return JSONResponse({
                 "answer": "System is still initializing. Please try again in a moment.",
                 "type": "error",
-                "error": "Vector store not initialized"
+                "error": "S3 Vectors store not initialized"
             })
 
         # Process the chat query using the AI agent
@@ -253,4 +239,29 @@ async def hybrid_agent_chat(request: Request):
             "answer": f"I'm sorry, I encountered an error processing your request: {str(e)}",
             "type": "error",
             "error": str(e)
+        })
+
+@app.post("/search_products")
+async def search_products_endpoint(request: Request):
+    """Search for similar products using S3 Vectors"""
+    try:
+        data = await request.json()
+        query = data.get("query")
+        top_k = data.get("top_k", 5)
+        
+        if not query:
+            raise HTTPException(status_code=400, detail="Query is required.")
+        
+        results = search_products_s3(query, top_k)
+        
+        return JSONResponse({
+            "query": query,
+            "results": results,
+            "count": len(results)
+        })
+        
+    except Exception as e:
+        logger.error(f"Product search error: {e}")
+        return JSONResponse({
+            "error": f"Error searching products: {str(e)}"
         }) 

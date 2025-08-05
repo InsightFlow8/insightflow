@@ -95,11 +95,12 @@ def load_products_for_vector_store():
     
     # Get products and merge with aisles/departments
     products = data['products'].copy()
+    # products = products[products['product_id'] < 10]
     aisles = data['aisles']
     departments = data['departments']
     
     # Limit to 1000 products for development (as per user's change)
-    products = products[products['product_id'] < 1000]
+    # products = products[products['product_id'] < 1000]
     
     logger.info(f"📦 Loading {len(products)} products for vector store...")
     

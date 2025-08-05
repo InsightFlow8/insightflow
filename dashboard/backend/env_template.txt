@@ -7,9 +7,14 @@ OPENAI_API_KEY=your_openai_api_key_here
 # Database Configuration (for future use)
 # DATABASE_URL=postgresql://user:password@localhost/dbname
 
-# Vector Store Configuration
-QDRANT_HOST=qdrant
-QDRANT_PORT=6333
+# Vector Store Configuration (S3Vectors Only)
+S3_VECTORS_BUCKET=imba-vector-database
+S3_VECTORS_INDEX=products-index
+
+# AWS Configuration (Required for S3Vectors)
+AWS_ACCESS_KEY_ID=your_aws_access_key_id_here
+AWS_SECRET_ACCESS_KEY=your_aws_secret_access_key_here
+AWS_DEFAULT_REGION=ap-southeast-2
 
 # Server Configuration
 HOST=0.0.0.0
