@@ -24,8 +24,14 @@ A dashboard with a comprehensive Customer Behavior Analysis Dashboard with AI-po
 
 2. **Create environment file:**
    ```bash
-   cp backend/env_template.txt .env
+   # Copy template to dashboard/ folder (not backend/)
+   cp env_template.txt .env
    # Edit .env and add your OPENAI_API_KEY and AWS credentials
+   # Add your credentials to .env:
+   # OPENAI_API_KEY=your_openai_api_key
+   # AWS_ACCESS_KEY_ID=your_aws_access_key  
+   # AWS_SECRET_ACCESS_KEY=your_aws_secret_key
+   # AWS_DEFAULT_REGION=ap-southeast-2
    ```
 
 3. **Start all services:**
@@ -143,7 +149,7 @@ deploy:
 ## AWS S3 Vector Bucket Configuration
 
 ### Environment Variables
-The system uses AWS S3Vectors for vector storage. Configure these in your `.env` file:
+The system uses AWS S3Vectors for vector storage. Configure these in your `.env` file in the `dashboard/` folder:
 
 ```bash
 # AWS Configuration
@@ -205,7 +211,7 @@ OPENAI_API_KEY=your_openai_api_key
    ```
 
 ### AWS S3Vectors Issues
-1. **Authentication errors**: Check AWS credentials in `.env`
+1. **Authentication errors**: Check AWS credentials in `.env` file in `dashboard/` folder
 2. **Bucket not found**: Verify S3_VECTORS_BUCKET exists in AWS
 3. **Network connectivity**: Ensure backend can reach AWS services
 
