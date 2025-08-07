@@ -3,7 +3,7 @@
 
 provider "aws" {
   region = var.aws_region
-  # profile = "insightflow"  # aws cli credential profile
+  profile = "insightflow"  # aws cli credential profile
 }
 
 data "aws_caller_identity" "current" {}
