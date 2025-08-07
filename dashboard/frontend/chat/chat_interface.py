@@ -121,7 +121,7 @@ def render_chat_interface():
         st.subheader("💡 Available Queries")
         
         st.markdown("**Product Information:**")
-        st.markdown("• `What is product ID of \"The Original Briquets\"?`")
+        st.markdown("• `What is product ID of \"French Bread\"?`")
         st.markdown("• `Find product ID for Organic Avocado`")
         st.markdown("• `Show me details for product 123`")
         

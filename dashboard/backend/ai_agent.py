@@ -12,6 +12,32 @@ logger = logging.getLogger(__name__)
 # Conversation sessions storage
 conversation_sessions: Dict[str, ConversationBufferMemory] = {}
 
+def is_greeting(text):
+    """Check if the text is a greeting by looking for exact word matches"""
+    text_lower = text.lower().strip()
+    words = text_lower.split()
+    
+    # Define exact greeting phrases and words
+    exact_greetings = [
+        "hello", "hi", "hey", 
+        "good morning", "good afternoon", "good evening",
+        "how are you"
+    ]
+    
+    # Check for exact phrase matches first
+    for greeting in exact_greetings:
+        if greeting == text_lower:
+            return True
+    
+    # Check for single greeting words (only if the text is very short)
+    if len(words) <= 2:
+        single_greetings = ["hello", "hi", "hey"]
+        for word in words:
+            if word in single_greetings:
+                return True
+    
+    return False
+
 def create_hybrid_agent(session_id: str = None, user_id: str = None):
     """Create a hybrid agent with conversation memory"""
     
@@ -129,10 +155,9 @@ def process_chat_query(query: str, session_id: str = None, user_id: str = None):
         logger.info(f"Processing query: '{query}' with session_id: {session_id}, user_id: {user_id}")
         
         # Pre-check for greetings and recommendation requests to provide direct responses
-        query_lower = query.lower()
+        query_lower = query.lower().strip()
         
-        # Handle greetings directly
-        if any(word in query_lower for word in ["hello", "hi", "hey"]):
+        if is_greeting(query_lower):
             logger.info("Handling greeting query")
             if user_id:
                 response = f"Hello! I'm your product assistant. I can help you with product information and personalized recommendations. Your user ID is {user_id}, so I can provide personalized recommendations for you. Ask me 'What should I buy?' for personalized recommendations or ask about specific products and categories."
@@ -146,7 +171,7 @@ def process_chat_query(query: str, session_id: str = None, user_id: str = None):
             }
         
         # Handle recommendation requests without user ID directly
-        if any(word in query_lower for word in ["recommend", "suggest", "buy", "should"]) and not user_id:
+        if any(word in query_lower for word in ["recommend", "suggest", "buy", "should"]) and not user_id and not any(word in query_lower for word in ["show", "find", "search", "chips", "bread", "fruits", "vegetables", "dairy"]):
             logger.info("Handling recommendation request without user ID")
             response = "I'd be happy to provide personalized recommendations! Please enter your user ID in the field above and try again. For example, enter '123' in the User ID field, then ask 'What should I buy?'"
             
@@ -170,7 +195,7 @@ def process_chat_query(query: str, session_id: str = None, user_id: str = None):
                 "session_id": session_id
             }
         
-        # For general product queries (like "suggest some products"), let the agent handle it
+        # For all other queries (including product searches like "show some chips"), let the agent handle it
         logger.info("Creating hybrid agent for query processing")
         # Create hybrid agent with session memory and user ID context
         agent = create_hybrid_agent(session_id, user_id)
@@ -192,7 +217,7 @@ def process_chat_query(query: str, session_id: str = None, user_id: str = None):
         # Provide a helpful fallback response based on the query
         query_lower = query.lower()
         
-        if any(word in query_lower for word in ["hello", "hi", "hey"]):
+        if is_greeting(query_lower):
             if user_id:
                 fallback_response = f"Hello! I'm your product assistant. I can help you with product information and personalized recommendations. Your user ID is {user_id}, so I can provide personalized recommendations for you. Ask me 'What should I buy?' for personalized recommendations or ask about specific products and categories."
             else:
