@@ -6,8 +6,23 @@ set -ex
 exec > >(tee /var/log/bastion-init.log) 2>&1
 echo "=== Bastion Init Script Started at $(date) ==="
 
+# Function to log messages with timestamps
+log_message() {
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1"
+}
+
+# Function to check if command succeeded
+check_status() {
+    if [ $? -eq 0 ]; then
+        log_message "✅ $1 completed successfully"
+    else
+        log_message "❌ $1 failed"
+        exit 1
+    fi
+}
+
 # Install Docker on EC2
-echo "Installing Docker..."
+log_message "🚀 Installing Docker..."
 sudo yum update -y
 sudo dnf install -y docker
 sudo systemctl enable docker
@@ -16,7 +31,7 @@ sudo usermod -a -G docker ec2-user
 
 # Fix socket permissions temporarily
 sudo chmod 666 /var/run/docker.sock
-echo "Docker installation completed"
+check_status "Docker installation"
 
 echo "Installing Docker Compose..."
 if ! command -v docker-compose &> /dev/null; then
@@ -24,39 +39,116 @@ if ! command -v docker-compose &> /dev/null; then
     sudo chmod +x /usr/local/bin/docker-compose
     sudo ln -sf /usr/local/bin/docker-compose /usr/bin/docker-compose
 fi
-echo "Docker Compose installation completed"
+check_status "Docker Compose installation"
 
-
-# Upload project to EC2
+# Install Git and Git LFS
+log_message "📦 Installing Git and Git LFS..."
 sudo dnf install git -y 
 sudo dnf install -y git-lfs
 git lfs install
-echo "Git installation completed"
+check_status "Git installation"
 
-# Clone the project from the specific branch, IF-5-Dashboard-S3VectorBucket. Delete the branch after merging with main.
-git clone -b IF-5-Dashboard-S3VectorBucket https://github.com/InsightFlow8/insightflow.git
-echo "Project cloning completed"
+# Clone the project from the specific branch
+log_message "📥 Cloning project from GitHub..."
+git clone -b IF-5-Dashboard-S3VectorBucket-Athena https://github.com/InsightFlow8/insightflow.git
+check_status "Project cloning"
+
 cd insightflow/dashboard
 git lfs pull
+check_status "Git LFS pull"
+
+# Download environment file and ALS model
+log_message "📁 Downloading environment file and ALS model..."
 aws s3 cp s3://insightflow-dev-scripts-bucket/env/.env . 
+check_status "Environment file download"
+
+# Download the latest ALS model (with error handling)
+log_message "🤖 Downloading ALS model from S3..."
+if aws s3 cp s3://insightflow-ml/models/als_model_20250808_005353.pkl als_model.pkl; then
+    check_status "ALS model download"
+    log_message "📊 ALS model size: $(ls -lh als_model.pkl | awk '{print $5}')"
+else
+    log_message "⚠️ Failed to download specific model, trying to find latest..."
+    # Try to find the latest model
+    latest_model=$(aws s3 ls s3://insightflow-ml/models/ | grep als_model | sort | tail -1 | awk '{print $4}')
+    if [ -n "$latest_model" ]; then
+        aws s3 cp "s3://insightflow-ml/models/$latest_model" als_model.pkl
+        check_status "Latest ALS model download ($latest_model)"
+    else
+        log_message "❌ No ALS model found in S3 bucket"
+        exit 1
+    fi
+fi
+
+# Verify model file integrity
+log_message "🔍 Verifying model file integrity..."
+if [ -f als_model.pkl ] && [ -s als_model.pkl ]; then
+    log_message "✅ Model file verified: $(ls -lh als_model.pkl | awk '{print $5}')"
+else
+    log_message "❌ Model file is missing or empty"
+    exit 1
+fi
 
 # Build and run the dashboard
-docker-compose up -d
-echo "Dashboard startup completed"
+log_message "🐳 Building and starting dashboard containers..."
+docker-compose down 2>/dev/null || true  # Stop any existing containers
+docker-compose build --no-cache  # Ensure fresh build
+check_status "Docker build"
 
-# Forward SSH
+docker-compose up -d
+check_status "Dashboard startup"
+
+# Wait for services to be ready
+log_message "⏳ Waiting for services to be ready..."
+sleep 30
+
+# Check if services are running
+log_message "📊 Checking service status..."
+docker-compose ps
+
+# Test model loading
+log_message "🧪 Testing model loading..."
+if docker-compose exec -T backend python backend/test_model_loading.py; then
+    log_message "✅ Model loading test passed"
+else
+    log_message "⚠️ Model loading test failed, but continuing..."
+fi
+
+# Check application health
+log_message "🏥 Checking application health..."
+if curl -f http://localhost:8000/health >/dev/null 2>&1; then
+    log_message "✅ Backend health check passed"
+else
+    log_message "⚠️ Backend health check failed"
+fi
+
+if curl -f http://localhost:8501/_stcore/health >/dev/null 2>&1; then
+    log_message "✅ Frontend health check passed"
+else
+    log_message "⚠️ Frontend health check failed"
+fi
+
+# Configure SSH forwarding
+log_message "🔐 Configuring SSH forwarding..."
 echo "AllowTcpForwarding yes" | sudo tee -a /etc/ssh/sshd_config
 echo "PermitTunnel yes" | sudo tee -a /etc/ssh/sshd_config
 echo "AllowAgentForwarding yes" | sudo tee -a /etc/ssh/sshd_config
 sudo systemctl restart sshd
+check_status "SSH configuration"
 
-# 安装 PostgreSQL 客户端
-sudo dnf install -y postgresql15
+# Final status
+log_message "🎉 Dashboard deployment completed successfully!"
+log_message "📋 Service URLs:"
+log_message "   - Backend API: http://localhost:8000"
+log_message "   - Frontend UI: http://localhost:8501"
+log_message "   - Health Check: http://localhost:8000/health"
 
-# 拷贝 SQL 文件到本地 /tmp 目录
-aws s3 cp ${sql_s3_path} /tmp/create_tables.sql
+# Optional: PostgreSQL setup (commented out)
+# log_message "🗄️ Setting up PostgreSQL..."
+# sudo dnf install -y postgresql15
+# aws s3 cp ${sql_s3_path} /tmp/create_tables.sql
+# export PGPASSWORD="${db_password}"
+# psql -h ${rds_host} -U ${db_username} -d ${db_name} -p ${rds_port} -f /tmp/create_tables.sql
 
-# 设置 PostgreSQL 密码环境变量，实现自动登录
-export PGPASSWORD="${db_password}"
-psql -h ${rds_host} -U ${db_username} -d ${db_name} -p ${rds_port} -f /tmp/create_tables.sql
+log_message "=== Bastion Init Script Completed at $(date) ==="
 
