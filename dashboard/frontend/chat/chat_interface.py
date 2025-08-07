@@ -115,6 +115,50 @@ def render_chat_interface():
             st.session_state.chat_history = []
             st.session_state.session_id = None
             st.rerun()
+        
+        # Helpful information section
+        st.markdown("---")
+        st.subheader("💡 Available Queries")
+        
+        st.markdown("**Product Information:**")
+        st.markdown("• `What is product ID of \"The Original Briquets\"?`")
+        st.markdown("• `Find product ID for Organic Avocado`")
+        st.markdown("• `Show me details for product 123`")
+        
+        st.markdown("**Recommendations:**")
+        st.markdown("• `What should I buy?`")
+        st.markdown("• `Suggest 3 products`")
+        st.markdown("• `Show me 5 recommendations`")
+        
+        st.markdown("**Product Search:**")
+        st.markdown("• `Show popular products`")
+        st.markdown("• `Find dairy products`")
+        st.markdown("• `Search for organic fruits`")
+        st.markdown("• `Show me 6 beverages`")
+        
+        st.markdown("**User Analysis:**")
+        st.markdown("• `Show similar users`")
+        st.markdown("• `Will the user buy product 778?`")
+        st.markdown("• `What's the purchase probability for user 123 and product 456?`")
+        
+        st.markdown("---")
+        st.subheader("ℹ️ How It Works")
+        
+        st.markdown("**Personalized Recommendations:**")
+        st.markdown("• If you provide a User ID that exists in our training data, you'll get personalized product recommendations based on your purchase history")
+        st.markdown("• Each recommendation includes a **Normalized Score** (0-1) indicating preference alignment")
+        
+        st.markdown("**Fallback to Popular Products:**")
+        st.markdown("• If your User ID is not found in training data, the system automatically falls back to showing **popular products**")
+        st.markdown("• Popular products are ranked by total purchase frequency across all users")
+        st.markdown("• This ensures you always get relevant recommendations, even for new users")
+        
+        st.markdown("**Score Interpretation:**")
+        st.markdown("• **0.9-1.0**: Very high preference/popularity")
+        st.markdown("• **0.7-0.9**: High preference/popularity")
+        st.markdown("• **0.5-0.7**: Medium preference/popularity")
+        st.markdown("• **0.3-0.5**: Low preference/popularity")
+        st.markdown("• **0.0-0.3**: Very low preference/popularity")
     
     # Main chat interface - full width
     # Chat messages display area with fixed height and scroll
@@ -150,10 +194,10 @@ def render_chat_interface():
     # Example queries in a horizontal layout
     example_queries = [
         "What should I buy?",
-        "suggest 3 products",
-        "Tell me about organic fruits",
+        "Suggest 3 products",
+        "Show similar users",
         "Find dairy products",
-        "What are some healthy snacks?",
+        "Will the user buy product 778?",
         "Show me 6 beverages"
     ]
     

@@ -29,6 +29,7 @@ RUN mkdir -p /app/data /app/backend /app/frontend /app/imba_data
 # Set environment variables
 ENV PYTHONPATH=/app
 ENV PYTHONUNBUFFERED=1
+ENV ALS_MODEL_PATH=/app/als_model.pkl
 
 # Expose ports
 EXPOSE 8000 8501
