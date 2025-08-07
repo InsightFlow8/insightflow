@@ -1,28 +1,47 @@
 # Summary
-A dashboard with a comprehensive Customer Behavior Analysis Dashboard with AI-powered product recommendations, built using Streamlit frontend, FastAPI backend, and AWS S3Vectors for vector storage.
+A dashboard with a comprehensive Customer Behavior Analysis Dashboard with AI-powered product recommendations, built using Streamlit frontend, FastAPI backend, AWS S3Vectors for vector storage, and AWS Athena for data analysis.
 
 ![](analysis.png)
 ![](chat_interface.png)
+
+# Architecture Overview
+
+## Core Components
+
+### Frontend (Streamlit)
+- **Port:** 8501
+- **URL:** http://localhost:8501
+- **Features:** Interactive dashboard with analytics, chat interface, and data visualization
+- **Documentation:** [Frontend README](frontend/README.md)
+
+### Backend (FastAPI)
+- **Port:** 8000
+- **URL:** http://localhost:8000
+- **Features:** AI chat, ML models, vector search with S3Vectors, data analysis with Athena
+- **Documentation:** [Backend README](backend/README.md)
+
+### AWS S3 Vector Bucket
+- **Service:** AWS S3Vectors (managed service)
+- **Features:** Product embeddings storage and similarity search
+- **Configuration:** Set via environment variables
+- **Benefits:** Scalable, managed, cost-effective vector storage
+
+### AWS Athena Integration
+- **Service:** AWS Athena (serverless query service)
+- **Purpose:** Data analysis and customer behavior insights
+- **Features:** 
+  - SQL queries on S3 data for customer segmentation
+  - Purchase pattern analysis
+  - Product affinity scoring
+  - Customer lifetime value calculations
+  - Churn analysis
+- **Benefits:** Serverless, pay-per-query, no infrastructure management
 
 # Docker Setup Guide
 
 ## Quick Start
 
-1. **Set up data files (IMPORTANT):**
-   ```bash
-   # Install Git LFS if not already installed
-   brew install git-lfs  # macOS
-   # or: sudo apt-get install git-lfs  # Ubuntu/Debian
-   
-   # Initialize Git LFS and download data files
-   git lfs install
-   git lfs pull
-   
-   # Verify data files are downloaded (should show files > 100MB)
-   ls -la ../imba_data/
-   ```
-
-2. **Create environment file:**
+1. **Create environment file:**
    ```bash
    # Copy template to dashboard/ folder (not backend/)
    cp env_template.txt .env
@@ -34,35 +53,16 @@ A dashboard with a comprehensive Customer Behavior Analysis Dashboard with AI-po
    # AWS_DEFAULT_REGION=ap-southeast-2
    ```
 
-3. **Start all services:**
+2. **Start all services:**
    ```bash
    docker-compose up -d
    ```
 
-4. **Access the applications:**
+3. **Access the applications:**
    - Frontend: http://localhost:8501
    - Backend API: http://localhost:8000
    - AWS S3 Vector Bucket: Managed via AWS Console
-
-## Services
-
-### Frontend (Streamlit)
-- **Port:** 8501
-- **URL:** http://localhost:8501
-- **Features:** Dashboard with analytics and chat interface
-- **Documentation:** [Frontend README](frontend/README.md)
-
-### Backend (FastAPI)
-- **Port:** 8000
-- **URL:** http://localhost:8000
-- **Features:** AI chat, ML models, vector search with S3Vectors
-- **Documentation:** [Backend README](backend/README.md)
-
-### AWS S3 Vector Bucket
-- **Service:** AWS S3Vectors (managed service)
-- **Features:** Product embeddings storage and similarity search
-- **Configuration:** Set via environment variables
-- **Benefits:** Scalable, managed, cost-effective vector storage
+   - AWS Athena: Managed via AWS Console
 
 ## Commands
 
@@ -93,30 +93,127 @@ For development, you can mount volumes to see changes immediately:
 docker-compose -f docker-compose.yml -f docker-compose.dev.yml up -d
 ```
 
-## Data Setup
+# EC2 Deployment
 
-### Git LFS Files
-The data files in `imba_data/` are stored using Git LFS (Large File Storage). You must download the actual data files before running the dashboard.
+## Prerequisites
 
-### Download Data Files
+1. **AWS Account Setup:**
+   - AWS CLI configured with appropriate permissions
+   - EC2 instance with sufficient resources (t2.medium or larger recommended)
+   - Security groups configured for ports 80, 443, 8501, 8000
+   - S3 bucket for model storage
+
+2. **Required AWS Services:**
+   - EC2 instance (t2.medium or larger)
+   - S3 bucket for ALS model storage
+   - IAM roles with appropriate permissions
+   - VPC with internet connectivity
+
+## Deployment Steps
+
+### 1. Launch EC2 Instance
+
 ```bash
-# Install Git LFS
-brew install git-lfs  # macOS
-# or: sudo apt-get install git-lfs  # Ubuntu/Debian
+# Using AWS CLI
+aws ec2 run-instances \
+  --image-id ami-00839deb72faa8a04 \
+  --instance-type t2.medium \
+  --key-name your-key-pair \
+  --security-group-ids sg-xxxxxxxxx \
+  --subnet-id subnet-xxxxxxxxx \
+  --user-data file://terraform/modules/ec2/bastion-init.sh \
+  --tag-specifications 'ResourceType=instance,Tags=[{Key=Name,Value=insightflow-dashboard}]'
+```
 
-# Initialize and download
-git lfs install
-git lfs pull
+### 2. Configure Security Groups
 
-# Verify download (files should be > 100MB)
-ls -la ../imba_data/
+Ensure the following ports are open:
+- **Port 80/443**: HTTP/HTTPS (for web access)
+- **Port 8501**: Streamlit frontend
+- **Port 8000**: FastAPI backend
+- **Port 22**: SSH (for management)
+
+### 3. Access the Application
+
+Once deployed, access the application at:
+- **Frontend**: `http://your-ec2-public-ip:8501`
+- **Backend API**: `http://your-ec2-public-ip:8000`
+
+### 4. Monitoring and Logs
+
+```bash
+# SSH into the EC2 instance
+ssh -i your-key.pem ec2-user@your-ec2-public-ip
+
+# Check service status
+docker-compose ps
+
+# View logs
+docker-compose logs -f
+
+# Check system resources
+htop
+df -h
+```
+
+## EC2 Configuration Details
+
+### Instance Specifications
+- **Instance Type**: t2.medium (2 vCPU, 4GB RAM)
+- **Storage**: 25GB GP3 EBS volume
+- **OS**: Amazon Linux 2
+- **Architecture**: x86_64
+
+### Automated Setup
+The deployment uses a `bastion-init.sh` script that automatically:
+1. Updates system packages
+2. Installs Docker and Docker Compose
+3. Installs Git
+4. Downloads the ALS model from S3
+5. Clones the repository
+6. Builds and starts the Docker containers
+7. Configures health checks
+
+### Environment Variables for EC2
+
+Create a `.env` file on the EC2 instance:
+
+```bash
+# AWS Configuration
+AWS_ACCESS_KEY_ID=your_aws_access_key
+AWS_SECRET_ACCESS_KEY=your_aws_secret_key
+AWS_DEFAULT_REGION=ap-southeast-2
+
+# S3 Configuration
+S3_VECTORS_BUCKET=your-vector-bucket
+S3_VECTORS_INDEX=products-index
+S3_MODEL_BUCKET=your-model-bucket
+
+# OpenAI Configuration
+OPENAI_API_KEY=your_openai_api_key
+
+# Athena Configuration
+ATHENA_DATABASE=your_athena_database
+ATHENA_WORKGROUP=primary
+ATHENA_OUTPUT_BUCKET=your-athena-output-bucket
+```
+
+## Data Configuration
+
+### AWS S3 Data Storage
+The system uses AWS S3 for data storage and AWS Athena for querying. Data is stored in S3 buckets and accessed through Athena queries.
+
+### Data Structure
+The system expects data to be organized in S3 with the following structure:
+```
+s3://y
 ```
 
 ### Expected File Structure
 After downloading, `imba_data/` should contain:
 ```
 imba_data/
-├── orders.csv                    # ~100MB
+├── orders.csv            
 ├── products.csv                  # ~1MB
 ├── departments.csv               # ~1KB
 ├── aisles.csv                    # ~10KB
