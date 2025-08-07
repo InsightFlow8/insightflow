@@ -7,10 +7,6 @@ from contextlib import asynccontextmanager
 from ai_agent import process_chat_query, clear_conversation_history
 from vector_store_s3 import initialize_s3_vector_store, get_s3_vector_store, search_products_s3
 from ml_model import initialize_ml_model
-from data_loader import get_all_data_for_frontend
-from analysis import create_product_affinity_simple, create_customer_journey_flow, create_lifetime_value_analysis, create_churn_analysis
-import pandas as pd
-
 
 
 logger = logging.getLogger(__name__)
@@ -54,95 +50,6 @@ async def lifespan(app: FastAPI):
 
 # Initialize FastAPI app with lifespan
 app = FastAPI(title="Product Recommendation System", lifespan=lifespan)
-
-@app.get("/data")
-async def get_data():
-    """Get all data for frontend"""
-    try:
-        df, orders, products, departments, aisles = get_all_data_for_frontend()
-        
-        # Simple data cleaning - just fill NaN with 0
-        def clean_dataframe(df):
-            """Clean DataFrame for JSON serialization"""
-            return df.fillna(0)
-        
-        # Clean all DataFrames
-        logger.info("Cleaning DataFrames for JSON serialization...")
-        
-        df = clean_dataframe(df)
-        orders = clean_dataframe(orders)
-        products = clean_dataframe(products)
-        departments = clean_dataframe(departments)
-        aisles = clean_dataframe(aisles)
-        
-        # Convert DataFrames to dict for JSON serialization
-        logger.info("Converting DataFrames to JSON...")
-        
-        df_dict = df.to_dict(orient='records')
-        orders_dict = orders.to_dict(orient='records')
-        products_dict = products.to_dict(orient='records')
-        departments_dict = departments.to_dict(orient='records')
-        aisles_dict = aisles.to_dict(orient='records')
-        
-        logger.info("✅ All DataFrames converted successfully")
-        
-        result = {
-            "df": df_dict,
-            "orders": orders_dict,
-            "products": products_dict,
-            "departments": departments_dict,
-            "aisles": aisles_dict
-        }
-        
-        logger.info("✅ Data successfully prepared for frontend")
-        return JSONResponse(result)
-        
-    except Exception as e:
-        logger.error(f"Data endpoint error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.post("/analysis/{analysis_type}")
-async def get_analysis(analysis_type: str, request: Request):
-    """Get cached analysis results"""
-    try:
-        data = await request.json()
-        df, _, _, _, _ = get_all_data_for_frontend()
-        
-        if analysis_type == "product_affinity":
-            top_products = data.get('top_products', 20)
-            result = create_product_affinity_simple(df, top_products)
-            return JSONResponse({
-                "result": {
-                    "pair_counts": dict(result[0]),
-                    "product_names": result[1].to_dict(),
-                    "product_counts": result[2].to_dict()
-                }
-            })
-        elif analysis_type == "customer_journey":
-            result = create_customer_journey_flow(df)
-            return JSONResponse({"result": result.to_dict()})
-        elif analysis_type == "lifetime_value":
-            result = create_lifetime_value_analysis(df)
-            return JSONResponse({
-                "result": {
-                    "figure": result[0].to_dict(),
-                    "customer_metrics": result[1].to_dict(orient='records')
-                }
-            })
-        elif analysis_type == "churn":
-            result = create_churn_analysis(df)
-            return JSONResponse({
-                "result": {
-                    "figure": result[0].to_dict(),
-                    "churn_indicators": result[1].to_dict(orient='records')
-                }
-            })
-        else:
-            raise HTTPException(status_code=400, detail="Invalid analysis type")
-        
-    except Exception as e:
-        logger.error(f"Analysis endpoint error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/health")
 async def health_check():

@@ -131,6 +131,17 @@ resource "aws_security_group_rule" "bastion_ingress_ssh" {
   description       = "Allow SSH from anywhere"
 }
 
+# Add this after the existing bastion security group rules
+resource "aws_security_group_rule" "bastion_ingress_streamlit" {
+  type              = "ingress"
+  from_port         = 8501
+  to_port           = 8501
+  protocol          = "tcp"
+  cidr_blocks       = ["0.0.0.0/0"]
+  security_group_id = aws_security_group.bastion.id
+  description       = "Allow Streamlit access from anywhere"
+}
+
 # RDS postgresql
 resource "aws_security_group" "postgres" {
   name        = "${var.env}-postgres-sg"

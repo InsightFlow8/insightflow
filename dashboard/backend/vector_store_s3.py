@@ -445,6 +445,13 @@ def load_s3_vector_store():
                     logger.info(f"✅ Product 45000 found: {product_check.get('product_name', 'Unknown')}")
                     logger.info("✅ Vector database already contains data, using existing store")
                     s3_store.initialize_embeddings()
+                    
+                    # Build product lookup from data even when using existing index
+                    logger.info("🔄 Building product lookup from existing data...")
+                    products = load_products_data()
+                    build_product_lookup_from_data(products)
+                    logger.info(f"✅ Built product lookup with {len(products)} products")
+                    
                     return s3_store
                 else:
                     logger.info("❌ Product 45000 not found in vector database")
