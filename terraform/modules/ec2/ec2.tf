@@ -9,14 +9,26 @@ resource "aws_instance" "bastion" {
   associate_public_ip_address = true
   iam_instance_profile        = aws_iam_instance_profile.ec2_instance_profile.name
 
-  user_data = templatefile("${path.module}/bastion-init.sh.tpl", {
-    rds_host     = var.rds_host
-    db_username  = var.db_username
-    db_name      = var.db_name
-    db_password  = var.db_password
-    rds_port     = var.rds_port
-    sql_s3_path  = var.sql_s3_path
-  })
+  # Configure root block device with 25 GB storage
+  root_block_device {
+    volume_size = 25
+    volume_type = "gp3"
+    encrypted   = true
+    tags = {
+      Name = "${var.env}-bastion-root-volume"
+    }
+  }
+
+  # user_data = templatefile("${path.module}/bastion-init.sh.tpl", {
+  # rds_host     = var.rds_host
+  # db_username  = var.db_username
+  # db_name      = var.db_name
+  # db_password  = var.db_password
+  # rds_port     = var.rds_port
+  # sql_s3_path  = var.sql_s3_path
+  # })
+
+  user_data = file("${path.module}/bastion-init.sh")
 
   tags = { Name = "${var.env}-bastion-ec2" }
 }

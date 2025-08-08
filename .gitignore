@@ -17,3 +17,8 @@ test.txt
 
 # in-process Python packages
 **/batch_ingestion_lambda/
+
+
+*.pem
+venv/
+.venv/

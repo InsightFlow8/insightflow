@@ -1,0 +1,92 @@
+# dashboard/docker-compose.yml
+services:
+  # Backend API Service
+  backend:
+    build:
+      context: ..
+      dockerfile: dashboard/Dockerfile
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app/backend
+      - ./data:/app/data
+      - ../imba_data:/app/imba_data
+      - model_cache:/app/backend/als_model.pkl
+    env_file:
+      - .env
+    environment:
+      - HOST=0.0.0.0
+      - PORT=8000
+      - LOG_LEVEL=INFO
+      - OPENBLAS_NUM_THREADS=1  # Fix OpenBLAS warning
+      # OPENAI API KEY
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      # S3 Vectors configuration - now using .env file
+      - S3_VECTORS_BUCKET=${S3_VECTORS_BUCKET}
+      - S3_VECTORS_INDEX=${S3_VECTORS_INDEX}
+      # AWS credentials - using .env file
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION}
+    command: ["python", "backend/main.py"]
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+        reservations:
+          memory: 2G
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  # Frontend Streamlit Service
+  frontend:
+    build:
+      context: ..
+      dockerfile: dashboard/Dockerfile
+    ports:
+      - "8501:8501"
+    volumes:
+      - ./frontend:/app/frontend
+      - ./backend:/app/backend
+      - ./data:/app/data
+      - ../imba_data:/app/imba_data
+    depends_on:
+      - backend
+    env_file:
+      - .env
+    environment:
+      - STREAMLIT_SERVER_PORT=8501
+      - STREAMLIT_SERVER_ADDRESS=0.0.0.0
+      - STREAMLIT_SERVER_HEADLESS=true
+      - STREAMLIT_SERVER_ENABLE_CORS=false
+      - STREAMLIT_SERVER_ENABLE_XSRF_PROTECTION=false
+      - STREAMLIT_SERVER_MAX_UPLOAD_SIZE=200
+      - STREAMLIT_BROWSER_GATHER_USAGE_STATS=false
+      - BACKEND_URL=http://backend:8000
+      # AWS credentials - using .env file
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION}
+      # S3 Vectors configuration - now using .env file
+      - S3_VECTORS_BUCKET=${S3_VECTORS_BUCKET}
+      - S3_VECTORS_INDEX=${S3_VECTORS_INDEX}
+    command: ["streamlit", "run", "frontend/Analysis.py", "--server.port=8501", "--server.address=0.0.0.0"]
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+        reservations:
+          memory: 2G
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8501/_stcore/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+volumes:
+  model_cache:

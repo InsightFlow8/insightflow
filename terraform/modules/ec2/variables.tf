@@ -19,42 +19,46 @@ variable "region" {
   type = string
 }
 
-variable "rds_endpoint" {
-  description = "PostgreSQL RDS endpoint(with port number)"
-  type = string
-}
+# ================================
+# RDS PostgreSQL
+# ================================
 
-variable "rds_host" {
-  description = "PostgreSQL RDS endpoint(without port number)"
-  type = string
-}
+# variable "rds_endpoint" {
+#   description = "PostgreSQL RDS endpoint(with port number)"
+#   type = string
+# }
 
-variable "db_name" {
-  description = "Database name"
-  type        = string
-}
+# variable "rds_host" {
+#   description = "PostgreSQL RDS endpoint(without port number)"
+#   type = string
+# }
 
-variable "db_username" {
-  description = "Master username for PostgreSQL"
-  type        = string
-}
+# variable "db_name" {
+#   description = "Database name"
+#   type        = string
+# }
 
-variable "db_password" {
-  description = "Master password for PostgreSQL"
-  type        = string
-  sensitive   = true
-}
+# variable "db_username" {
+#   description = "Master username for PostgreSQL"
+#   type        = string
+# }
 
-variable "rds_port" {
-  description = "RDS port for PostgreSQL"
-  type        = number
-  sensitive   = true
-}
+# variable "db_password" {
+#   description = "Master password for PostgreSQL"
+#   type        = string
+#   sensitive   = true
+# }
 
-variable "sql_s3_path" {
-  description = "S3 path for create_tables.sql"
-  type        = string
-}
+# variable "rds_port" {
+#   description = "RDS port for PostgreSQL"
+#   type        = number
+#   sensitive   = true
+# }
+
+# variable "sql_s3_path" {
+#   description = "S3 path for create_tables.sql"
+#   type        = string
+# }
 
 
 variable "bastion_security_group_ids" {}
