@@ -1,5 +1,75 @@
 #!/bin/bash
 
+# =============================================================================
+# Bastion Host Initialization Script
+# =============================================================================
+#
+# PURPOSE:
+#   This script initializes an EC2 bastion host for the InsightFlow project.
+#   It installs Docker, Docker Compose, Git, clones the repository, downloads
+#   required files from S3, and deploys the dashboard using Docker Compose.
+#
+# DEPLOYMENT LOCATION:
+#   ⚠️  IMPORTANT: The insightflow project is deployed in the ROOT directory
+#       (/root/insightflow/) NOT in the ec2-user home directory.
+#
+#   This happens because:
+#   1. The script runs with elevated privileges (sudo)
+#   2. The working directory during execution becomes /root/
+#   3. Git clone creates the repository in the current working directory
+#
+#   📁 FOLDER STRUCTURE AFTER DEPLOYMENT:
+#   /root/
+#   └── insightflow/
+#       ├── dashboard/
+#       │   ├── docker-compose.yml      # Docker Compose configuration
+#       │   ├── .env                    # Environment variables (from S3)
+#       │   ├── als_model.pkl          # ML model (from S3)
+#       │   ├── backend/               # Backend application code
+#       │   ├── frontend/              # Frontend application code
+#       │   └── data/                  # Data directory
+#       ├── terraform/                 # Infrastructure as Code
+#       ├── functions/                 # Lambda functions
+#       └── ...                        # Other project files
+#
+# ACCESSING THE DASHBOARD:
+#   To access the dashboard files and manage Docker containers:
+#   ```bash
+#   # Switch to root user
+#   sudo su -
+#   cd /root/insightflow/dashboard
+#   
+#   # Check Docker containers
+#   docker-compose ps
+#   
+#   # View logs
+#   docker-compose logs -f
+#   
+#   # Restart services
+#   docker-compose restart
+#   ```
+#
+# DOCKER SERVICES:
+#   - Backend API: http://localhost:8000 (or EC2 public IP:8000)
+#   - Frontend UI: http://localhost:8501 (or EC2 public IP:8501)
+#   - Health Check: http://localhost:8000/health
+#
+# PREREQUISITES:
+#   - EC2 instance with Amazon Linux 2023
+#   - IAM role with S3 access permissions
+#   - Internet connectivity for GitHub and Docker Hub
+#   - Sufficient disk space (25GB+ recommended)
+#
+# LOGGING:
+#   All script output is logged to /var/log/bastion-init.log
+#
+# ERROR HANDLING:
+#   Script exits on first error with detailed logging
+#   Each major step includes status checking and validation
+#
+# =============================================================================
+
+
 set -ex
 
 # Create log file
@@ -47,6 +117,7 @@ sudo dnf install git -y
 check_status "Git installation"
 
 # Clone the project from the specific branch
+# NOTE: This creates the insightflow folder in the current working directory (/root/)
 log_message "📥 Cloning project from GitHub..."
 git clone -b IF-5-Dashboard-S3VectorBucket-Athena https://github.com/InsightFlow8/insightflow.git
 check_status "Project cloning"
@@ -117,6 +188,8 @@ log_message "📋 Service URLs:"
 log_message "   - Backend API: http://localhost:8000"
 log_message "   - Frontend UI: http://localhost:8501"
 log_message "   - Health Check: http://localhost:8000/health"
+log_message "📁 Project location: /root/insightflow/ (NOT in /home/ec2-user/)"
+log_message "🐳 Docker management: cd /root/insightflow/dashboard && docker-compose [command]"
 
 log_message "=== Bastion Init Script Completed at $(date) ==="
 

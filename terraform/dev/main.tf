@@ -2,8 +2,8 @@
 # 顶层 Terraform 入口，包含 provider 配置与 module 加载.
 
 provider "aws" {
-  region = var.aws_region
-  # profile = "insightflow" # aws cli credential profile
+  region  = var.aws_region
+  profile = "insightflow" # aws cli credential profile
 }
 
 data "aws_caller_identity" "current" {}
