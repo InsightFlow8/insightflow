@@ -1,0 +1,35 @@
+aws:
+  region: ap-southeast-2
+  role_arn: arn:aws:iam::017166048286:role/SageMakerExecutionRole-Insightflow   # 用于 SageMaker 的执行角色
+  default_bucket: insightflow-dev-clean-bucket
+
+s3:
+  # 只读输入
+  raw_after_clean: s3://insightflow-dev-clean-bucket/after-clean/
+  raw_after_transformation: s3://insightflow-dev-clean-bucket/after-transformation/
+
+  # 本模块写入（建议保留这个前缀）
+  base_output: s3://insightflow-dev-clean-bucket/ml/recsys
+
+processing:
+  instance_type: ml.t3.small
+  instance_count: 1
+  volume_gb: 30
+  max_runtime_sec: 3600
+
+training:
+  instance_type: ml.c5.xlarge
+  instance_count: 1
+  volume_gb: 50
+  max_runtime_sec: 7200
+  # ALS 超参（implicit 库）
+  als:
+    factors: 64
+    regularization: 0.01
+    alpha: 40
+    iterations: 10
+
+inference:
+  instance_type: ml.t3.small
+  instance_count: 1
+  top_k: 20
