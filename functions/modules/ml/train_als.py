@@ -1,6 +1,7 @@
 # functions/modules/ml/train_als.py
 """
 提交 SageMaker PySparkProcessor 任务，运行 als_train.py
+注意：PySparkProcessor 属于 Processing Job，消耗的是 *Processing* 配额。
 """
 
 import time
@@ -33,10 +34,14 @@ def main():
 
     ts = time.strftime("%Y%m%d-%H%M%S")
     model_s3 = f"{base_output}/models/als-{ts}"
+    spark_logs_s3 = f"{base_output}/spark_event_logs/als-{ts}"
 
     boto_ses = boto3.Session(region_name=region)
-    sm_ses = sagemaker.session.Session(boto_session=boto_ses, default_bucket=cfg["aws"]["default_bucket"])
+    sm_ses = sagemaker.session.Session(
+        boto_session=boto_ses, default_bucket=cfg["aws"]["default_bucket"]
+    )
 
+    # 这里的 instance_type / count / volume / max_runtime_sec 走 processing 配额
     processor = PySparkProcessor(
         base_job_name="recsys-als-train",
         framework_version="3.3",
@@ -48,15 +53,16 @@ def main():
         sagemaker_session=sm_ses,
     )
 
-    repo_root = Path(__file__).resolve().parents[3]
-    submit_app = "functions/modules/ml/als_train.py"
+    # 使用绝对路径，最稳妥
+    submit_app = (Path(__file__).resolve().parent / "als_train.py").as_posix()
 
     print(f"[TRAIN] input:  {input_s3}")
     print(f"[TRAIN] model:  {model_s3}")
 
     processor.run(
-        submit_app=submit_app,
-        source_dir=str(repo_root),
+        submit_app=submit_app,                 # 入口 PySpark 脚本
+        # 如 als_train.py 需要同目录的其它 .py，可再加：
+        # submit_py_files=[(Path(__file__).resolve().parent).as_posix()],
         arguments=[
             "--input_dir", "/opt/ml/processing/input",
             "--model_dir", "/opt/ml/processing/model",
@@ -82,7 +88,10 @@ def main():
                 output_name="model",
             )
         ],
+        spark_event_logs_s3_uri=spark_logs_s3,  # 可选：方便排查 Spark 事件日志
         wait=True,
+        logs=True,
+        job_name=f"als-train-{ts}",
     )
 
     print(f"[TRAIN] Done. Model S3: {model_s3}")
