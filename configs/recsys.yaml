@@ -15,7 +15,7 @@ s3:
   mice_orders_out: s3://insightflow-dev-clean-bucket/ml/recsys/mice_orders
 
 processing:
-  instance_type: ml.r5.2xlarge
+  instance_type: ml.t3.2xlarge
   instance_count: 1
   volume_gb: 100
   max_runtime_sec: 5400
