@@ -5,22 +5,25 @@ aws:
 
 s3:
   # 只读输入
-  raw_after_clean: s3://insightflow-dev-clean-bucket/after-clean/
+  raw_after_clean: s3://insightflow-dev-clean-bucket/after-clean/orders/
   raw_after_transformation: s3://insightflow-dev-clean-bucket/after-transformation/
-
+  
   # 本模块写入（建议保留这个前缀）
   base_output: s3://insightflow-dev-clean-bucket/ml/recsys
 
+  # 专门存放 “orders 的 MICE 输出”
+  mice_orders_out: s3://insightflow-dev-clean-bucket/ml/recsys/mice_orders
+
 processing:
-  instance_type: ml.t3.small
+  instance_type: ml.r5.2xlarge
   instance_count: 1
-  volume_gb: 30
-  max_runtime_sec: 3600
+  volume_gb: 100
+  max_runtime_sec: 5400
 
 training:
-  instance_type: ml.c5.xlarge
+  instance_type: ml.r5.2xlarge
   instance_count: 1
-  volume_gb: 50
+  volume_gb: 100
   max_runtime_sec: 7200
   # ALS 超参（implicit 库）
   als:
@@ -30,6 +33,6 @@ training:
     iterations: 10
 
 inference:
-  instance_type: ml.t3.small
+  instance_type: ml.t3.medium
   instance_count: 1
   top_k: 20
