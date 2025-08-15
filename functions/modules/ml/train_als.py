@@ -1,7 +1,6 @@
-# functions/modules/ml/train_als.py
+# -*- coding: utf-8 -*-
 """
-提交 SageMaker PySparkProcessor 任务，运行 als_train.py
-注意：PySparkProcessor 属于 Processing Job，消耗的是 *Processing* 配额。
+提交 SageMaker PySparkProcessor 训练 ALS（隐式反馈）
 """
 
 import time
@@ -27,23 +26,21 @@ def main():
     cfg = load_cfg(args.config)
     region = cfg["aws"]["region"]
     role_arn = cfg["aws"]["role_arn"]
-    input_s3 = cfg["s3"]["raw_after_transformation"]
     base_output = cfg["s3"]["base_output"]
+    input_s3 = cfg["s3"]["ratings_latest"]  # 直接用你在 YAML 里配置的 latest ratings
     tr = cfg["training"]
     hp = cfg["training"]["als"]
 
     ts = time.strftime("%Y%m%d-%H%M%S")
     model_s3 = f"{base_output}/models/als-{ts}"
-    spark_logs_s3 = f"{base_output}/spark_event_logs/als-{ts}"
 
     boto_ses = boto3.Session(region_name=region)
     sm_ses = sagemaker.session.Session(
         boto_session=boto_ses, default_bucket=cfg["aws"]["default_bucket"]
     )
 
-    # 这里的 instance_type / count / volume / max_runtime_sec 走 processing 配额
     processor = PySparkProcessor(
-        base_job_name="recsys-als-train",
+        base_job_name="als-train",
         framework_version="3.3",
         role=role_arn,
         instance_count=tr["instance_count"],
@@ -53,45 +50,51 @@ def main():
         sagemaker_session=sm_ses,
     )
 
-    # 使用绝对路径，最稳妥
-    submit_app = (Path(__file__).resolve().parent / "als_train.py").as_posix()
+    repo_root = Path(__file__).resolve().parents[3]
+    submit_app = str(repo_root / "functions/modules/ml/als_train.py")
 
     print(f"[TRAIN] input:  {input_s3}")
     print(f"[TRAIN] model:  {model_s3}")
 
+    # 把 S3 的 ratings 拷到容器本地 /opt/ml/processing/input
+    inputs = [
+        ProcessingInput(
+            source=input_s3,
+            destination="/opt/ml/processing/input",
+            input_name="ratings",
+        )
+    ]
+
+    outputs = [
+        ProcessingOutput(
+            source="/opt/ml/processing/model",
+            destination=model_s3,
+            output_name="model",
+        )
+    ]
+
+    arguments = [
+        "--input_dir", "/opt/ml/processing/input",
+        "--model_dir", "/opt/ml/processing/model",
+        "--user_col", "user_id",
+        "--item_col", "product_id",
+        "--rating_col", "rating",
+        "--factors", str(hp["factors"]),
+        "--reg", str(hp["regularization"]),
+        "--alpha", str(hp["alpha"]),
+        "--iters", str(hp["iterations"]),
+        "--shuffle_partitions", "200",
+    ]
+
+    job_name = f"als-train-{ts}"
     processor.run(
-        submit_app=submit_app,                 # 入口 PySpark 脚本
-        # 如 als_train.py 需要同目录的其它 .py，可再加：
-        # submit_py_files=[(Path(__file__).resolve().parent).as_posix()],
-        arguments=[
-            "--input_dir", "/opt/ml/processing/input",
-            "--model_dir", "/opt/ml/processing/model",
-            "--user_col", "user_id",
-            "--item_col", "product_id",
-            "--rating_col", "rating",
-            "--factors", str(hp["factors"]),
-            "--reg", str(hp["regularization"]),
-            "--alpha", str(hp["alpha"]),
-            "--iters", str(hp["iterations"]),
-        ],
-        inputs=[
-            ProcessingInput(
-                source=input_s3,
-                destination="/opt/ml/processing/input",
-                input_name="train_data",
-            )
-        ],
-        outputs=[
-            ProcessingOutput(
-                source="/opt/ml/processing/model",
-                destination=model_s3,
-                output_name="model",
-            )
-        ],
-        spark_event_logs_s3_uri=spark_logs_s3,  # 可选：方便排查 Spark 事件日志
+        submit_app=submit_app,     # 本地路径，SDK 会自动打包上传
+        inputs=inputs,
+        outputs=outputs,
+        arguments=arguments,
         wait=True,
         logs=True,
-        job_name=f"als-train-{ts}",
+        job_name=job_name,
     )
 
     print(f"[TRAIN] Done. Model S3: {model_s3}")

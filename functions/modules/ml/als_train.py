@@ -1,175 +1,163 @@
-# functions/modules/ml/als_train.py
+# -*- coding: utf-8 -*-
 """
-在 SageMaker PySparkProcessor 容器内训练隐式反馈 ALS（使用 python `implicit` 库）。
-- 自动安装缺失依赖（implicit / scipy / pandas / pyarrow）
-- 自动定位包含 (user_id, product_id, rating) 的 Parquet 数据集（从 --input_dir 根开始若干常见子目录）
-- 充足日志，失败时打印友好错误并 exit(2)
-
-用法（由 train_als.py 调用）：
-  spark-submit ... als_train.py --input_dir /opt/ml/processing/input --model_dir /opt/ml/processing/model \
-    --user_col user_id --item_col product_id --rating_col rating --factors 64 --reg 0.01 --alpha 40 --iters 10
+在 SageMaker PySparkProcessor 中训练 Spark MLlib ALS（隐式反馈）
+- 读取 ratings (user_id, product_id, rating)
+- 训练 ALSModel 并保存到 /opt/ml/processing/model/als_model
+- 打印/落盘 meta.json；异常时落盘 _error.txt
 """
 
+import json
 import os
 import sys
-import time
-import json
+import traceback
 import argparse
-import subprocess
-from pathlib import Path
+from datetime import datetime
 
-def _pip_install(pkgs):
-    """在容器内安装所需依赖（如果已装则跳过）。"""
-    for p in pkgs:
-        try:
-            __import__(p.split("==")[0].replace("-", "_"))
-            print(f"[PKG] already installed: {p}")
-        except Exception:
-            print(f"[PKG] installing: {p}")
-            subprocess.run([sys.executable, "-m", "pip", "install", p, "--quiet"], check=True)
+from pyspark.sql import SparkSession, functions as F, types as T
+from pyspark.ml.recommendation import ALS, ALSModel
 
-def _now():
-    return time.strftime("%Y-%m-%d %H:%M:%S")
 
-def parse_args():
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--input_dir", required=True)
-    ap.add_argument("--model_dir", required=True)
-    ap.add_argument("--user_col", default="user_id")
-    ap.add_argument("--item_col", default="product_id")
-    ap.add_argument("--rating_col", default="rating")
-    ap.add_argument("--factors", type=int, default=64)
-    ap.add_argument("--reg", type=float, default=0.01)
-    ap.add_argument("--alpha", type=float, default=40.0)
-    ap.add_argument("--iters", type=int, default=10)
-    return ap.parse_args()
+def _spark_uri(p: str) -> str:
+    """本地路径加 file://，目录默认读 *.parquet。"""
+    if p.startswith("/opt/ml/"):
+        if not p.endswith(".parquet"):
+            p = p.rstrip("/") + "/*.parquet"
+        return "file://" + p
+    return p
 
-def _find_dataset(spark, root: str, want_cols):
-    """在 root 下按候选路径依次尝试读取 parquet，直到发现包含所需列的 DataFrame。"""
-    root = root.rstrip("/")
-    cands = [
-        root,  # 直接就是数据集
-        f"{root}/upi_features_union",
-        f"{root}/features/upi_features_union",
-        f"{root}/ratings",
-        f"{root}/user_product_interactions",
-    ]
-    errors = {}
-    for p in cands:
-        try:
-            print(f"[{_now()}] [DATA] try: {p}")
-            df = spark.read.parquet(p)
-            cols = set(x.lower() for x in df.columns)
-            missing = [c for c in want_cols if c.lower() not in cols]
-            if missing:
-                print(f"[DATA] path {p} exists but missing columns: {missing}; columns={df.columns}")
-                continue
-            print(f"[DATA] use dataset: {p} with columns={df.columns}")
-            return df, p
-        except Exception as e:
-            errors[p] = str(e)
-    raise RuntimeError(f"No valid dataset found under {root}. Tried: {list(errors.keys())}. Errors: {json.dumps(errors)[:500]}")
+def _as_file_uri(p: str) -> str:
+    return p if p.startswith("file://") else "file://" + p
+
 
 def main():
-    print(f"[{_now()}] [BOOT] als_train.py starting...")
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--input_dir", required=True)
+    parser.add_argument("--model_dir", required=True)
+    parser.add_argument("--user_col", default="user_id")
+    parser.add_argument("--item_col", default="product_id")
+    parser.add_argument("--rating_col", default="rating")
+    parser.add_argument("--factors", type=int, default=64)
+    parser.add_argument("--reg", type=float, default=1e-2)
+    parser.add_argument("--alpha", type=float, default=40.0)
+    parser.add_argument("--iters", type=int, default=10)
+    parser.add_argument("--shuffle_partitions", type=int, default=200)
+    args = parser.parse_args()
 
-    # -------- 1) 安装依赖（单机 processing 容器可行） --------
-    # 选定版本有预编译 manylinux wheel，避免编译失败
-    _pip_install([
-        "implicit==0.7.2",
-        "scipy>=1.10,<2.0",
-        "pandas>=2.1,<3.0",
-        "pyarrow>=14,<22",
-    ])
-    # 限制 BLAS 线程，避免小实例过度并发
-    os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
-    os.environ.setdefault("MKL_NUM_THREADS", "1")
+    os.makedirs(args.model_dir, exist_ok=True)
+    meta_path = os.path.join(args.model_dir, "meta.json")
+    err_path = os.path.join(args.model_dir, "_error.txt")
 
-    # -------- 2) 解析参数 / 构建 Spark --------
-    args = parse_args()
-    print(f"[ARGS] {vars(args)}")
-
-    # Pyspark 在 SageMaker Spark 容器已就绪，这里直接 import / 构建会话
-    from pyspark.sql import SparkSession
-    spark = (SparkSession.builder.appName("recsys-als-train")
-             .config("spark.sql.execution.arrow.pyspark.enabled", "true")
+    spark = (SparkSession.builder
+             .appName("train-als-implicit")
+             .config("spark.sql.shuffle.partitions", str(args.shuffle_partitions))
              .getOrCreate())
-    spark.sparkContext.setLogLevel("WARN")
 
-    want_cols = [args.user_col, args.item_col, args.rating_col]
+    start_ts = datetime.utcnow().isoformat()
 
-    # -------- 3) 自动发现数据集并做基本校验 --------
-    sdf, used_path = _find_dataset(spark, args.input_dir, want_cols)
-    sdf = sdf.select(args.user_col, args.item_col, args.rating_col).dropna()
-    print(f"[DATA] sample:")
-    print(sdf.limit(5).toPandas())
+    try:
+        read_path = _spark_uri(args.input_dir)
+        print(f"[ALS] reading ratings from: {read_path}")
 
-    # -------- 4) 构造稀疏交互矩阵，训练 implicit ALS --------
-    import numpy as np
-    import pandas as pd
-    from scipy.sparse import coo_matrix
-    from implicit.als import AlternatingLeastSquares
+        df = spark.read.parquet(read_path)
 
-    # 统一为 int 类型并从 0 开始索引
-    pdf = sdf.toPandas()
-    user_ids = pdf[args.user_col].astype("int64")
-    item_ids = pdf[args.item_col].astype("int64")
-    ratings  = pdf[args.rating_col].astype("float32")
+        # 字段与类型
+        needed = [args.user_col, args.item_col, args.rating_col]
+        for c in needed:
+            if c not in df.columns:
+                raise ValueError(f"column '{c}' not found in input! columns={df.columns}")
+        df = (df
+              .withColumn(args.user_col, F.col(args.user_col).cast(T.IntegerType()))
+              .withColumn(args.item_col, F.col(args.item_col).cast(T.IntegerType()))
+              .withColumn(args.rating_col, F.col(args.rating_col).cast(T.DoubleType())))
 
-    # 映射到 [0..n)（implicit 需要从 0 开始）
-    u_unique, u_idx = np.unique(user_ids.values, return_inverse=True)
-    i_unique, i_idx = np.unique(item_ids.values, return_inverse=True)
+        before_cnt = df.count()
+        df = (df.groupBy(args.user_col, args.item_col)
+                .agg(F.max(F.col(args.rating_col)).alias(args.rating_col)))
+        after_cnt = df.count()
 
-    rows = u_idx
-    cols = i_idx
-    data = ratings.values
-    mat = coo_matrix((data, (rows, cols)), shape=(u_unique.size, i_unique.size)).tocsr()
+        stats = df.select(
+            F.count("*").alias("cnt"),
+            F.min(args.rating_col).alias("min"),
+            F.max(args.rating_col).alias("max"),
+            F.avg(args.rating_col).alias("avg"),
+        ).collect()[0]
+        print(f"[ALS] rows(before={before_cnt}, after_dedup={after_cnt}) stats={stats.asDict()}")
 
-    print(f"[SHAPE] users={u_unique.size}, items={i_unique.size}, nnz={mat.nnz}")
+        if stats["cnt"] == 0:
+            raise ValueError("ratings dataset is empty after dedup.")
+        if stats["min"] is None or stats["min"] <= 0:
+            raise ValueError(f"rating must be > 0 for implicit ALS; got min={stats['min']}")
 
-    # 训练（implicit 的 ALS 接受“信心”权重；alpha 已在 features 端计算或此处作为放大系数）
-    model = AlternatingLeastSquares(
-        factors=int(args.factors),
-        regularization=float(args.reg),
-        iterations=int(args.iters),
-        use_gpu=False,
-        num_threads=0,
-    )
-    # implicit 默认期望 item-user 矩阵；此处做转置
-    model.fit(mat.T)
+        als = ALS(
+            userCol=args.user_col,
+            itemCol=args.item_col,
+            ratingCol=args.rating_col,
+            rank=args.factors,
+            regParam=args.reg,
+            maxIter=args.iters,
+            implicitPrefs=True,
+            alpha=args.alpha,
+            coldStartStrategy="drop",
+            nonnegative=True,
+        )
 
-    # -------- 5) 保存模型与映射 --------
-    model_dir = Path(args.model_dir)
-    model_dir.mkdir(parents=True, exist_ok=True)
-    model_path = model_dir / "als_model.npz"
-    model.save(str(model_path))
+        model: ALSModel = als.fit(df)
 
-    # 保存 id 映射，便于离线/在线推理
-    pd.Series(u_unique).to_csv(model_dir / "users.csv", index=False, header=False)
-    pd.Series(i_unique).to_csv(model_dir / "items.csv", index=False, header=False)
+        # 关键修复：保存到本地文件系统（可被 ProcessingOutput 同步到 S3）
+        model_dir_local = os.path.join(args.model_dir, "als_model")
+        save_uri = _as_file_uri(model_dir_local)
+        print(f"[ALS] saving model -> {save_uri}")
+        model.save(save_uri)
 
-    meta = {
-        "used_path": used_path,
-        "user_col": args.user_col,
-        "item_col": args.item_col,
-        "rating_col": args.rating_col,
-        "factors": int(args.factors),
-        "reg": float(args.reg),
-        "alpha": float(args.alpha),
-        "iters": int(args.iters),
-        "timestamp": _now(),
-    }
-    (model_dir / "meta.json").write_text(json.dumps(meta, ensure_ascii=False, indent=2))
+        # 写 meta
+        meta = {
+            "started_at_utc": start_ts,
+            "finished_at_utc": datetime.utcnow().isoformat(),
+            "input": args.input_dir,
+            "rows_before": int(before_cnt),
+            "rows_after_dedup": int(after_cnt),
+            "rating_stats": {
+                "min": float(stats["min"]),
+                "max": float(stats["max"]),
+                "avg": float(stats["avg"]),
+            },
+            "params": {
+                "rank": args.factors,
+                "regParam": args.reg,
+                "alpha": args.alpha,
+                "maxIter": args.iters,
+                "implicitPrefs": True,
+                "coldStartStrategy": "drop",
+                "nonnegative": True,
+                "shuffle_partitions": args.shuffle_partitions,
+            },
+            "spark": {"version": spark.version},
+        }
+        with open(meta_path, "w", encoding="utf-8") as f:
+            json.dump(meta, f, ensure_ascii=False, indent=2)
 
-    print(f"[SAVE] model: {model_path}")
-    print(f"[SAVE] meta : {model_dir / 'meta.json'}")
-    print(f"[{_now()}] [DONE] ALS training finished successfully.")
+        # 打印一下本地输出目录结构，便于排查
+        print("[ALS] model_dir tree:")
+        for r, ds, fs in os.walk(args.model_dir):
+            for name in ds:
+                print("  [D]", os.path.join(r, name))
+            for name in fs:
+                print("  [F]", os.path.join(r, name))
+
+        # 标记成功
+        open(os.path.join(args.model_dir, "_SUCCESS"), "w").close()
+        print("[ALS] training done.")
+
+    except Exception as e:
+        tb = traceback.format_exc()
+        print("[ALS][ERROR]", str(e))
+        print(tb)
+        with open(err_path, "w", encoding="utf-8") as f:
+            f.write(tb)
+        raise
+    finally:
+        spark.stop()
+
 
 if __name__ == "__main__":
-    try:
-        main()
-    except Exception as e:
-        # 明确打印错误，保证 spark-submit 返回非 0
-        print(f"[FATAL] {e}", file=sys.stderr)
-        import traceback; traceback.print_exc()
-        sys.exit(2)
+    main()
