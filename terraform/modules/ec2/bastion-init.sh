@@ -131,30 +131,8 @@ check_status "Environment file download"
 
 # Download the latest ALS model (with error handling)
 log_message "🤖 Downloading ALS model from S3..."
-if aws s3 cp s3://insightflow-ml/models/als_model_20250808_005353.pkl als_model.pkl; then
-    check_status "ALS model download"
-    log_message "📊 ALS model size: $(ls -lh als_model.pkl | awk '{print $5}')"
-else
-    log_message "⚠️ Failed to download specific model, trying to find latest..."
-    # Try to find the latest model
-    latest_model=$(aws s3 ls s3://insightflow-ml/models/ | grep als_model | sort | tail -1 | awk '{print $4}')
-    if [ -n "$latest_model" ]; then
-        aws s3 cp "s3://insightflow-ml/models/$latest_model" als_model.pkl
-        check_status "Latest ALS model download ($latest_model)"
-    else
-        log_message "❌ No ALS model found in S3 bucket"
-        exit 1
-    fi
-fi
-
-# Verify model file integrity
-log_message "🔍 Verifying model file integrity..."
-if [ -f als_model.pkl ] && [ -s als_model.pkl ]; then
-    log_message "✅ Model file verified: $(ls -lh als_model.pkl | awk '{print $5}')"
-else
-    log_message "❌ Model file is missing or empty"
-    exit 1
-fi
+rm -rf backend/als_model && mkdir -p backend/als_model
+aws s3 cp s3://insightflow-dev-clean-bucket/ml/recsys/models/als-20250815-180121/als_model/ backend/als_model/
 
 # Build and run the dashboard
 log_message "🐳 Building and starting dashboard containers..."
