@@ -10,8 +10,6 @@ services:
     volumes:
       - ./backend:/app/backend
       - ./data:/app/data
-      - ../imba_data:/app/imba_data
-      - model_cache:/app/backend/als_model.pkl
     env_file:
       - .env
     environment:
@@ -53,7 +51,6 @@ services:
       - ./frontend:/app/frontend
       - ./backend:/app/backend
       - ./data:/app/data
-      - ../imba_data:/app/imba_data
     depends_on:
       - backend
     env_file:

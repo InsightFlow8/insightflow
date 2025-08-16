@@ -1480,6 +1480,28 @@ class AthenaAnalyzer:
             print(f"Error checking data types: {e}")
             return None
 
+    def cache_popular_products(self, top_n: int = 20, cache_json_path: str = "popular_products_cache.json"):
+        """Query top N popular products by purchase count and save as a local JSON cache file."""
+        query = f'''
+            SELECT p.product_id, p.product_name, a.aisle, d.department, COUNT(*) as purchase_count
+            FROM {self.database}.raw_order_products_prior op
+            JOIN {self.database}.raw_products p ON op.product_id = p.product_id
+            LEFT JOIN {self.database}.raw_aisles a ON p.aisle_id = a.aisle_id
+            LEFT JOIN {self.database}.raw_departments d ON p.department_id = d.department_id
+            GROUP BY p.product_id, p.product_name, a.aisle, d.department
+            ORDER BY purchase_count DESC
+            LIMIT {top_n}
+        '''
+        logger.info(f"Querying Athena for top {top_n} popular products...")
+        df = self.execute_query(query, query_name="popular_products", use_cache=True, max_rows=top_n)
+        if df is not None and len(df) > 0:
+            # Save as JSON (list of dicts)
+            records = df.to_dict(orient="records")
+            with open(cache_json_path, "w") as f:
+                json.dump(records, f, indent=2)
+            logger.info(f"✅ Saved top {top_n} popular products to {cache_json_path}")
+        else:
+            logger.warning("No popular products found or query failed.")
 
 
 def test_athena_analysis():

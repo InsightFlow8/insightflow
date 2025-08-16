@@ -302,7 +302,9 @@ def load_products_for_vector_store():
         # Use max_rows=50000 to ensure we get all products (less than 50,000 as requested)
         products = athena_loader.execute_query(query, "products_for_vector_store", use_cache=True, max_rows=50000)
         
+        
         logger.info(f"✅ Products prepared for vector store: {len(products)} records")
+        # print(products[products['product_id'] == 45000])
         return products
         
     except Exception as e:

@@ -71,13 +71,16 @@ def create_hybrid_agent(session_id: str = None, user_id: str = None):
         
         # Create tools dynamically with user_id context
         tools = create_enhanced_tools(vectorstore, user_id)
-        logger.info(f"Created {len(tools)} tools")
+        # Add structured recommendation tool for robust output parsing
+        from tools import recommendation_tool_structured
+        tools.append(recommendation_tool_structured)
+        logger.info(f"Created {len(tools)} tools (including structured output tool)")
         
         # Create the agent with format instructions
         agent = initialize_agent(
             tools,
             llm,
-            agent=AgentType.CONVERSATIONAL_REACT_DESCRIPTION,
+            agent=AgentType.OPENAI_FUNCTIONS,
             verbose=True,
             handle_parsing_errors=True,
             max_iterations=5,
@@ -93,7 +96,7 @@ CRITICAL INSTRUCTIONS:
 4. Use get_product_details tool when users ask about specific product IDs
 5. Use get_similar_users tool when users ask about similar customers
 6. Use get_product_id_by_name tool when users ask about specific product names or when you need to find a product ID
-7. Use get_user_product_probability tool when users ask about purchase probability or likelihood to buy specific products
+7. Use get_user_product_probability tool when users ask about purchase probability or likelihood to buy specific products (for product name queries, always pass the name, not just the ID, to get multiple related products and their scores; never output 'undefined', 'null', or fallback text. If you cannot parse the output, return the tool output as-is.)
 
 FORMATTING REQUIREMENTS:
 - Always format product information as: **Product**: *[product_name]*; **Aisle**: *[aisle]*; **Department**: *[department]*

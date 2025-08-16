@@ -42,13 +42,15 @@ def render_chat_interface():
         """Process a chat query and add to chat history"""
         # Add user message to chat history
         st.session_state.chat_history.append(("user", query))
+        # Always use the current user_id from session state, as a string
+        user_id = str(st.session_state.user_id).strip() if st.session_state.user_id is not None else ""
         
         # Process the request
         try:
             # Prepare request data
             request_data = {
                 "query": query,
-                "user_id": st.session_state.user_id,
+                "user_id": user_id,  # Always send as string
                 "session_id": st.session_state.session_id
             }
             
@@ -76,6 +78,11 @@ def render_chat_interface():
                 
                 # Add assistant response to chat history
                 st.session_state.chat_history.append(("ai", assistant_response))
+                # Filter out any undefined/null/empty AI responses
+                st.session_state.chat_history = [
+                    (role, msg) for role, msg in st.session_state.chat_history
+                    if not (role.lower() == "ai" and (msg is None or msg.strip().lower() in ["undefined", "null", "none", ""]))
+                ]
                 
             else:
                 error_msg = f"Error: Backend returned status {response.status_code}"
@@ -138,8 +145,8 @@ def render_chat_interface():
         
         st.markdown("**User Analysis:**")
         st.markdown("• `Show similar users`")
-        st.markdown("• `Will the user buy product 778?`")
-        st.markdown("• `What's the purchase probability for user 123 and product 456?`")
+        st.markdown("• `Will the user buy 9387, 9598, 4812??`")
+        st.markdown("• `Does the user like chocolate?`")
         
         st.markdown("---")
         st.subheader("ℹ️ How It Works")
@@ -154,11 +161,11 @@ def render_chat_interface():
         st.markdown("• This ensures you always get relevant recommendations, even for new users")
         
         st.markdown("**Score Interpretation:**")
-        st.markdown("• **0.9-1.0**: Very high preference/popularity")
-        st.markdown("• **0.7-0.9**: High preference/popularity")
-        st.markdown("• **0.5-0.7**: Medium preference/popularity")
-        st.markdown("• **0.3-0.5**: Low preference/popularity")
-        st.markdown("• **0.0-0.3**: Very low preference/popularity")
+        st.markdown("• **0.7-1.0**: Very high preference/popularity")
+        st.markdown("• **0.5-0.7**: High preference/popularity")
+        st.markdown("• **0.3-0.5**: Medium preference/popularity")
+        st.markdown("• **0.1-0.3**: Low preference/popularity")
+        st.markdown("• **0.0-0.1**: Very low preference/popularity")
     
     # Main chat interface - full width
     # Chat messages display area with fixed height and scroll
@@ -170,8 +177,9 @@ def render_chat_interface():
             with st.chat_message("user"):
                 st.markdown(msg)
         elif role.lower() == "ai":
-            with st.chat_message("assistant"):
-                st.markdown(msg)
+            if msg and msg.strip().lower() not in ["undefined", "null", "none", ""]:
+                with st.chat_message("assistant"):
+                    st.markdown(msg)
     
     # Fixed chat input at the bottom
     # st.markdown("---")  # Separator line
@@ -197,7 +205,7 @@ def render_chat_interface():
         "Suggest 3 products",
         "Show similar users",
         "Find dairy products",
-        "Will the user buy product 778?",
+        "Will the user buy apples?",
         "Show me 6 beverages"
     ]
     
