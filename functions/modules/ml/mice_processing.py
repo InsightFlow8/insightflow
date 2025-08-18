@@ -1,8 +1,9 @@
+# mice_processing.py
 """
 SageMaker Processing（Sklearn）task，运行 mice_imputer.py。
 - 输入：after-clean/orders/（分区 parquet）
 - 输出：cfg.s3.mice_orders_out（建议设为 s3://.../after-clean/after-MICE）
-- 同步 latest/ 时优先级：orders_imputed.parquet > orders.parquet > user_imp_imputed_mean.parquet
+- 同步 latest/：**固定**拷贝 run-*/orders.parquet 到 .../latest/orders.parquet（聚合的原始明细）
 """
 
 import time
@@ -37,7 +38,7 @@ def main():
     cfg = load_cfg(args.config)
     region = cfg["aws"]["region"]
     role_arn = cfg["aws"]["role_arn"]
-    input_s3 = cfg["s3"]["raw_after_clean"]          # e.g. s3://.../after-clean/orders/
+    input_s3 = cfg["s3"]["raw_after_clean"]                 # e.g. s3://.../after-clean/orders/
     out_root = cfg["s3"]["mice_orders_out"].rstrip("/") + "/"   # e.g. s3://.../after-clean/after-MICE/
     proc = cfg["processing"]
 
@@ -81,28 +82,24 @@ def main():
         job_name=f"mice-{ts}",
     )
 
-    # —— 同步 latest/ （优先级：明细 > 汇总）——
+    # —— 同步 latest/ ：固定选择 orders.parquet（原始聚合），不再用插补版 —— #
     out_bucket, out_prefix = _parse_s3_uri(out_s3)
-
     resp = s3_cli.list_objects_v2(Bucket=out_bucket, Prefix=out_prefix)
     keys = [obj["Key"] for obj in resp.get("Contents", [])]
 
-    priority = ["orders_imputed.parquet", "orders.parquet", "user_imp_imputed_mean.parquet"]
     chosen = None
-    for name in priority:
-        for k in keys:
-            if k.endswith("/" + name) or k.endswith(name):
-                chosen = k
-                break
-        if chosen:
+    target_name = "orders.parquet"
+    for k in keys:
+        if k.endswith("/" + target_name) or k.endswith(target_name):
+            chosen = k
             break
     if not chosen:
-        raise RuntimeError(f"[PROC] No parquet found under s3://{out_bucket}/{out_prefix}")
+        raise RuntimeError(f"[PROC] {target_name} not found under s3://{out_bucket}/{out_prefix}")
 
     latest_bucket, latest_prefix = _parse_s3_uri(out_root)
     latest_key = f"{latest_prefix.rstrip('/')}/latest/orders.parquet"
 
-    print("[PROC] sync latest:\n"
+    print("[PROC] sync latest (raw aggregated):\n"
           f"  src: s3://{out_bucket}/{chosen}\n"
           f"  dst: s3://{latest_bucket}/{latest_key}")
     s3_res.meta.client.copy({"Bucket": out_bucket, "Key": chosen}, latest_bucket, latest_key)

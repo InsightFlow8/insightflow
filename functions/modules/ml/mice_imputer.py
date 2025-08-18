@@ -1,12 +1,14 @@
+# mice_imputer.py
 """
 SageMaker Processing entrypoint for MICE imputation (statsmodels, PMM).
 
 目标：
-- 明细级：生成 orders_imputed.parquet（除了“最后一单==30”的行被填补，其它行原样保留）
-- 汇总级：保留 user_imp_imputed_mean.parquet（审计/下游可选）
+- 明细级：生成 orders_imputed.parquet（仅“最后一单==30”的行被填补，其它行原样保留）
+- 汇总级：生成 orders.parquet（把多分片的 orders/ 原样聚合到一个文件，不做插补）
+- 审计级：保留 user_imp_imputed_mean.parquet
 
 业务规则：
-1) 首单 NaN -> 0（保持）
+1) 首单 NaN -> 0（用于计算与插补；是否在明细保留该零值逻辑与既有实现一致）
 2) 仅把“每个用户的最后一单且 days_since_prior_order==30”视作缺失
 3) 先用 MICE(PMM) 按用户估计；若个别用户仍无值，用“该用户其它订单的中位数”兜底，再无则用全局中位数
 """
@@ -102,7 +104,7 @@ def run_mice_pmm(user_imp: pd.DataFrame, M: int = 7, max_iter: int = 10, seed: i
     imputed = []
     for m in range(M):
         md = MICEData(base)
-        md.update_all(n_iter=max_iter)  # PMM
+        md.update_all(n_iter=max_iter)  # PMM-like
         df = md.data.copy()
         df["impute_id"] = m
         imputed.append(df)
@@ -145,12 +147,23 @@ def write_detail_orders(orders: pd.DataFrame, final_mean: pd.DataFrame, out_dir:
 
     orders2.loc[need_mask, "days_since_prior_order"] = fill
     orders2 = orders2.drop(columns=["_is_last"])
+
     # 最终类型收紧为 int
-    orders2["days_since_prior_order"] = orders2["days_since_prior_order"].astype("int32")
+    if "days_since_prior_order" in orders2.columns:
+        orders2["days_since_prior_order"] = orders2["days_since_prior_order"].astype("int32")
 
     out_path = out_dir / "orders_imputed.parquet"
     orders2.to_parquet(out_path, index=False)
     print(f"[MICE] Saved detail parquet: {out_path}", flush=True)
+
+
+def write_aggregated_orders_raw(orders_raw: pd.DataFrame, out_dir: Path):
+    """
+    把多分片 orders/ 原样聚合为单文件（不做插补），用于同步 latest/orders.parquet。
+    """
+    out_path = out_dir / "orders.parquet"
+    orders_raw.to_parquet(out_path, index=False)
+    print(f"[MICE] Saved raw aggregated parquet: {out_path}", flush=True)
 
 
 # ---------- main ----------
@@ -173,12 +186,17 @@ def main():
     orders = read_all_parquet(in_dir)
     print(f"[MICE] input shape: {orders.shape}", flush=True)
 
-    # 若整数列被读成 float（如 1.0），安全转回 int
+    # 先把“原始聚合”的 orders.parquet 写出（不触发任何插补改写）
+    orders_aggregated_raw = orders.copy(deep=True)
+    write_aggregated_orders_raw(orders_aggregated_raw, out_dir)
+
+    # 若整数列被读成 float（如 1.0），安全转回 int（后续插补与写回用）
     for col in ["user_id", "order_number"]:
         if col in orders.columns and pd.api.types.is_float_dtype(orders[col]):
             if (orders[col].dropna() % 1 == 0).all():
                 orders[col] = orders[col].astype("Int64").astype("int64")
 
+    # 构造用户级问题表并执行 MICE
     user_imp = build_user_table(orders)
     print("[MICE] running MICE ...", flush=True)
     final_mean, imputed_all = run_mice_pmm(user_imp, M=args.chains, max_iter=args.iters, seed=args.seed)
