@@ -1,7 +1,7 @@
 resource "aws_iam_role" "glue_data_clean" {
-  name = var.iam_role_name
+  name               = var.iam_role_name
   assume_role_policy = data.aws_iam_policy_document.glue_assume_role_policy.json
-  tags = var.tags
+  tags               = var.tags
 }
 
 data "aws_iam_policy_document" "glue_assume_role_policy" {

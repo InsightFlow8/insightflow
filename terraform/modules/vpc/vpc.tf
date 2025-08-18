@@ -293,33 +293,44 @@ resource "aws_vpc_endpoint" "s3" {
 }
 
 ## Glue VPC Endpoint（已注释，后续如需Glue ETL可恢复）
+# Glue VPC Endpoint 使得 lambda function boto 3 不能访问 Glue tables，所以暂时注释
 # resource "aws_vpc_endpoint" "glue" {
-#   vpc_id             = aws_vpc.main.id
-#   service_name       = "com.amazonaws.${var.region}.glue"
-#   vpc_endpoint_type  = "Interface"
-#   subnet_ids         = aws_subnet.private[*].id
-#   security_group_ids = [aws_security_group.glue.id] # ✅ REQUIRED
+#   vpc_id              = aws_vpc.main.id
+#   service_name        = "com.amazonaws.${var.region}.glue"
+#   vpc_endpoint_type   = "Interface"
+#   subnet_ids          = aws_subnet.private[*].id
+#   security_group_ids  = [aws_security_group.glue.id] # ✅ REQUIRED
 #   private_dns_enabled = true
 #   tags = {
 #     Name = "${var.env}-glue-endpoint"
 #   }
 # }
 
-## 如需Glue安全组，可参考如下模板（已注释，后续可恢复）
-# resource "aws_security_group" "glue" {
-#   name        = "${var.env}-glue-sg"
-#   description = "Glue ETL security group"
-#   vpc_id      = aws_vpc.main.id
-#   egress {
-#     from_port   = 0
-#     to_port     = 0
-#     protocol    = "-1"
-#     cidr_blocks = ["0.0.0.0/0"]
-#   }
-#   tags = {
-#     Name = "${var.env}-glue-sg"
-#   }
-# }
+# 如需Glue安全组，可参考如下模板（已注释，后续可恢复）
+resource "aws_security_group" "glue" {
+  name        = "${var.env}-glue-sg"
+  description = "Glue ETL security group"
+  vpc_id      = aws_vpc.main.id
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+  tags = {
+    Name = "${var.env}-glue-sg"
+  }
+}
+
+resource "aws_security_group_rule" "glue_self_ingress" {
+  type                     = "ingress"
+  from_port                = 0
+  to_port                  = 65535
+  protocol                 = "-1"
+  security_group_id        = aws_security_group.glue.id
+  source_security_group_id = aws_security_group.glue.id
+  description              = "Allow all traffic from self for Glue job executor"
+}
 
 # resource "aws_vpc_endpoint" "dms" {
 #   service_name       = "com.amazonaws.${var.region}.dms"

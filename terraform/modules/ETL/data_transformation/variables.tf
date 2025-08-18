@@ -109,3 +109,13 @@ variable "s3_clean_bucket" {
   description = "S3 clean bucket name for input and output data"
   type        = string
 }
+
+variable "private_subnet_ids" {
+  description = "Private subnet IDs"
+  type        = list(string)
+}
+
+variable "glue_security_group_id" {
+  description = "Glue security group ID"
+  type        = string
+}

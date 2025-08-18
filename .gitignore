@@ -22,3 +22,5 @@ test.txt
 *.pem
 venv/
 .venv/
+
+.cursor/
