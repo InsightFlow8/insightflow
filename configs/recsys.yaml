@@ -1,6 +1,7 @@
 aws:
   region: ap-southeast-2
   role_arn: arn:aws:iam::017166048286:role/SageMakerExecutionRole-Insightflow   # 用于 SageMaker 的执行角色
+  # SageMaker session 的默认桶（SDK 内部用）
   default_bucket: insightflow-dev-clean-bucket
 
 s3:
@@ -8,17 +9,23 @@ s3:
   raw_after_clean: s3://insightflow-dev-clean-bucket/after-clean/orders/
   raw_after_transformation: s3://insightflow-dev-clean-bucket/after-transformation/
   
-  # 本模块写入（建议保留这个前缀）
+  # 本模块写入（建议保留这个前缀） base_output：放训练模型等（仍在 clean 层，便于后续部署/调用）
   base_output: s3://insightflow-dev-clean-bucket/ml/recsys
-
+  # eval_output：评估产物（建议在 curated 层，如需放到 clean 层，改这里就行）
+  eval_output: s3://insightflow-dev-curated-bucket/recsys/eval
+  
   # 专门存放 “orders 的 MICE 输出”
   mice_orders_out: s3://insightflow-dev-clean-bucket/after-clean/after-MICE
 
   # 构建 rating 矩阵
   order_products_prior: s3://insightflow-dev-clean-bucket/after-clean/order_products_prior/
+  order_products_train: s3://insightflow-dev-clean-bucket/after-clean/order_products_train/
   mice_orders_latest: s3://insightflow-dev-clean-bucket/after-clean/after-MICE/latest/orders.parquet
   upi_features_out: s3://insightflow-dev-clean-bucket/after-transformation/upi_features/
   ratings_latest: s3://insightflow-dev-clean-bucket/after-transformation/upi_features/latest/ratings.parquet
+
+  # 评估产物
+  eval_out_base: s3://insightflow-dev-curated-bucket/recsys/eval/
 
 processing:
   instance_type: ml.t3.xlarge
@@ -38,7 +45,8 @@ training:
     alpha: 40
     iterations: 10
 
+
 inference:
   instance_type: ml.t3.medium
   instance_count: 1
-  top_k: 20
+  top_k: 20  # 评估/推荐时的 K 值（als_eval.py & batch 推荐都会用到）

@@ -25,3 +25,5 @@ venv/
 
 .cursor/
 .DS_Store
+# local charts (do not commit)
+mice_check/
