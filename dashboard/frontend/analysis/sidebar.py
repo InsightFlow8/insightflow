@@ -11,5 +11,6 @@ def render_sidebar(departments):
         options=departments['department'].unique(),
         default=departments['department'].unique()[:5]
     )
+   
     
     return selected_departments 

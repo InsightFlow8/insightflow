@@ -24,5 +24,4 @@ PORT=8000
 LOG_LEVEL=INFO
 
 # Model Configuration
-ALS_MODEL_PATH=als_model.pkl
 VECTOR_STORE_COLLECTION=products_collection 

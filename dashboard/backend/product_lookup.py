@@ -110,7 +110,7 @@ class ProductLookup:
                 
                 if len(results) >= limit:
                     break
-        
+        logger.info(f"[ProductLookup] Search query: '{query}' | Results found: {len(results)}")
         return results
 
 # Global instance
@@ -129,10 +129,39 @@ def build_product_lookup_from_data(products_data: pd.DataFrame):
     _product_lookup = ProductLookup()
     _product_lookup.build_from_products_data(products_data)
 
-def get_product_by_id(product_id: str) -> Optional[Dict[str, Any]]:
-    """Get product information by product ID"""
+def get_product_by_id_s3(product_id: str):
+    """Fallback: Query S3 vector database for product metadata if not found in cache."""
+    try:
+        from vector_store_s3 import check_product_exists_s3
+        result = check_product_exists_s3(product_id)
+        if result.get('exists'):
+            # Return a dict similar to cache format
+            return {
+                'product_id': str(result.get('product_id')),
+                'product_name': result.get('product_name', 'Unknown'),
+                'aisle': result.get('aisle', 'Unknown'),
+                'department': result.get('department', 'Unknown'),
+                'aisle_id': result.get('aisle_id', ''),
+                'department_id': result.get('department_id', ''),
+                'content': f"product name：{result.get('product_name', 'Unknown')}；aisle：{result.get('aisle', 'Unknown')}；department：{result.get('department', 'Unknown')}"
+            }
+        else:
+            return None
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).error(f"Error querying S3 vector DB for product {product_id}: {e}")
+        return None
+
+# Patch the global function to use S3 fallback
+
+def get_product_by_id(product_id: str):
+    """Get product information by product ID, with S3 fallback."""
     lookup = get_product_lookup()
-    return lookup.get_product_by_id(product_id)
+    result = lookup.get_product_by_id(product_id)
+    if result is not None:
+        return result
+    # Fallback to S3 vector DB
+    return get_product_by_id_s3(product_id)
 
 def get_product_by_vector_key(vector_key: str) -> Optional[Dict[str, Any]]:
     """Get product information by vector key"""
