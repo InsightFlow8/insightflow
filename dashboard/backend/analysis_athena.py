@@ -19,7 +19,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 class AthenaAnalyzer:
-    def __init__(self, region='ap-southeast-2', database='insightflow_imba_raw_data_catalog'):
+    def __init__(self, region='ap-southeast-2', database='insightflow_imba_clean_data_catalog'):
         # Set AWS credentials from environment variables if available
         import os
         aws_access_key = os.getenv('AWS_ACCESS_KEY_ID')
@@ -83,24 +83,24 @@ class AthenaAnalyzer:
         self.s3_client = session.client('s3')
         self.database = database
         # Updated to use raw bucket for output
-        self.output_location = 's3://insightflow-dev-raw-bucket/athena-results/'
-        self.cache_location = 's3://insightflow-dev-raw-bucket/athena-cache/'
+        self.output_location = 's3://insightflow-dev-clean-bucket/athena-results/'
+        self.cache_location = 's3://insightflow-dev-clean-bucket/athena-cache/'
         
         # Test the connection
         try:
             # Test if we can access the S3 bucket
-            self.s3_client.head_bucket(Bucket='insightflow-dev-raw-bucket')
-            logger.info(f"✅ Successfully connected to S3 bucket: insightflow-dev-raw-bucket")
+            self.s3_client.head_bucket(Bucket='insightflow-dev-clean-bucket')
+            logger.info(f"✅ Successfully connected to S3 bucket: insightflow-dev-clean-bucket")
         except Exception as e:
             logger.warning(f"⚠️ Could not access S3 bucket: {e}")
             # Try to create the directories if they don't exist
             try:
                 self.s3_client.put_object(
-                    Bucket='insightflow-dev-raw-bucket',
+                    Bucket='insightflow-dev-clean-bucket',
                     Key='athena-results/'
                 )
                 self.s3_client.put_object(
-                    Bucket='insightflow-dev-raw-bucket',
+                    Bucket='insightflow-dev-clean-bucket',
                     Key='athena-cache/'
                 )
                 logger.info("✅ Created athena-results and athena-cache directories in S3 bucket")
@@ -118,14 +118,14 @@ class AthenaAnalyzer:
             
             # Check if cached file exists
             try:
-                self.s3_client.head_object(Bucket='insightflow-dev-raw-bucket', Key=cache_key)
+                self.s3_client.head_object(Bucket='insightflow-dev-clean-bucket', Key=cache_key)
                 logger.info(f"📋 Found cached result for query hash: {query_hash}")
             except:
                 logger.info(f"📋 No cached result found for query hash: {query_hash}")
                 return None
             
             # Download and load cached result
-            response = self.s3_client.get_object(Bucket='insightflow-dev-raw-bucket', Key=cache_key)
+            response = self.s3_client.get_object(Bucket='insightflow-dev-clean-bucket', Key=cache_key)
             
             # Read the entire content into memory first
             parquet_content = response['Body'].read()
@@ -155,7 +155,7 @@ class AthenaAnalyzer:
             
             # Upload to S3
             self.s3_client.put_object(
-                Bucket='insightflow-dev-raw-bucket',
+                Bucket='insightflow-dev-clean-bucket',
                 Key=cache_key,
                 Body=parquet_content
             )
@@ -290,7 +290,7 @@ class AthenaAnalyzer:
             CREATE TABLE {self.database}.{view_name}
             WITH (
                 format = 'PARQUET',
-                external_location = 's3://insightflow-dev-raw-bucket/materialized-views/{view_name}/'
+                external_location = 's3://insightflow-dev-clean-bucket/materialized-views/{view_name}/'
             )
             AS {query}
             """
@@ -354,23 +354,23 @@ class AthenaAnalyzer:
                 department_filter = f"""
                 AND p.department_id IN (
                     SELECT department_id 
-                    FROM {self.database}.raw_departments 
+                    FROM {self.database}.after_clean_departments 
                     WHERE department IN ({','.join(dept_names)})
                 )
                 """
         
         return f"""
         WITH combined_order_products AS (
-            SELECT * FROM {self.database}.raw_order_products_prior
+            SELECT * FROM {self.database}.after_clean_order_products_prior
             UNION ALL
-            SELECT * FROM {self.database}.raw_order_products_train
+            SELECT * FROM {self.database}.after_clean_order_products_train
         ),
         top_products AS (
             SELECT product_id
             FROM (
                 SELECT op.product_id, COUNT(*) as frequency
                 FROM combined_order_products op
-                JOIN {self.database}.raw_products p ON CAST(op.product_id AS INTEGER) = CAST(p.product_id AS INTEGER)
+                JOIN {self.database}.after_clean_products p ON CAST(op.product_id AS INTEGER) = CAST(p.product_id AS INTEGER)
                 WHERE 1=1 {department_filter}
                 GROUP BY op.product_id
                 ORDER BY frequency DESC
@@ -405,10 +405,10 @@ class AthenaAnalyzer:
             d2.department as product2_department,
             pp.pair_count
         FROM product_pairs pp
-        JOIN {self.database}.raw_products p1 ON pp.product1_id = CAST(p1.product_id AS INTEGER)
-        JOIN {self.database}.raw_products p2 ON pp.product2_id = CAST(p2.product_id AS INTEGER)
-        JOIN {self.database}.raw_departments d1 ON p1.department_id = d1.department_id
-        JOIN {self.database}.raw_departments d2 ON p2.department_id = d2.department_id
+        JOIN {self.database}.after_clean_products p1 ON pp.product1_id = CAST(p1.product_id AS INTEGER)
+        JOIN {self.database}.after_clean_roducts p2 ON pp.product2_id = CAST(p2.product_id AS INTEGER)
+        JOIN {self.database}.after_clean_departments d1 ON p1.department_id = d1.department_id
+        JOIN {self.database}.after_clean_departments d2 ON p2.department_id = d2.department_id
         ORDER BY pp.pair_count DESC
         """
     
@@ -416,9 +416,9 @@ class AthenaAnalyzer:
         """Get the customer journey query for materialized view"""
         return f"""
     WITH combined_order_products AS (
-        SELECT * FROM {self.database}.raw_order_products_prior
+        SELECT * FROM {self.database}.after_clean_order_products_prior
         UNION ALL
-        SELECT * FROM {self.database}.raw_order_products_train
+        SELECT * FROM {self.database}.after_clean_order_products_train
     ),
     order_metrics AS (
         SELECT 
@@ -427,7 +427,7 @@ class AthenaAnalyzer:
             COUNT(*) as items_in_order,
             SUM(CASE WHEN op.reordered = '1' THEN 1 ELSE 0 END) as reordered_items,
             MAX(CAST(op.add_to_cart_order AS INTEGER)) as order_size
-        FROM {self.database}.raw_orders o
+        FROM {self.database}.after_clean_orders o
         JOIN combined_order_products op ON o.order_id = op.order_id
         GROUP BY o.order_id, o.user_id
     ),
@@ -461,9 +461,9 @@ class AthenaAnalyzer:
         """Get the lifetime value query for materialized view"""
         return f"""
         WITH combined_order_products AS (
-            SELECT * FROM {self.database}.raw_order_products_prior
+            SELECT * FROM {self.database}.after_clean_order_products_prior
             UNION ALL
-            SELECT * FROM {self.database}.raw_order_products_train
+            SELECT * FROM {self.database}.after_clean_order_products_train
         ),
         customer_metrics AS (
             SELECT 
@@ -474,7 +474,7 @@ class AthenaAnalyzer:
                 AVG(CAST(op.add_to_cart_order AS DOUBLE)) as avg_order_size,
                 MAX(CAST(o.order_number AS INTEGER)) as max_order_number
             FROM combined_order_products op
-            JOIN {self.database}.raw_orders o ON op.order_id = o.order_id
+            JOIN {self.database}.after_clean_orders o ON op.order_id = o.order_id
             GROUP BY o.user_id
         )
         SELECT 
@@ -503,7 +503,7 @@ class AthenaAnalyzer:
                 user_id,
                 order_number,
                 days_since_prior
-            FROM {self.database}.raw_orders
+            FROM {self.database}.after_clean_orders
             WHERE CAST(order_number AS INTEGER) > 1  -- Only subsequent orders
         ),
         customer_metrics AS (
@@ -1258,7 +1258,7 @@ class AthenaAnalyzer:
         SELECT 
             department_id,
             department
-        FROM {self.database}.raw_departments
+        FROM {self.database}.after_clean_departments
         ORDER BY department
         """
         
@@ -1277,7 +1277,7 @@ class AthenaAnalyzer:
                 department_filter = f"""
                 AND p.department_id IN (
                     SELECT department_id 
-                    FROM {self.database}.raw_departments 
+                    FROM {self.database}.after_clean_departments 
                     WHERE department IN ({','.join(dept_names)})
                 )
                 """
@@ -1287,29 +1287,29 @@ class AthenaAnalyzer:
         
         query = f"""
         WITH combined_order_products AS (
-          SELECT * FROM {self.database}.raw_order_products_prior
+          SELECT * FROM {self.database}.after_clean_order_products_prior
           UNION ALL
-          SELECT * FROM {self.database}.raw_order_products_train
+          SELECT * FROM {self.database}.after_clean_order_products_train
         ),
         filtered_order_products AS (
           SELECT op.*
           FROM combined_order_products op
-          JOIN {self.database}.raw_products p ON CAST(op.product_id AS INTEGER) = CAST(p.product_id AS INTEGER)
+          JOIN {self.database}.after_clean_products p ON CAST(op.product_id AS INTEGER) = CAST(p.product_id AS INTEGER)
           WHERE 1=1 {department_filter}
         ),
         filtered_orders AS (
           SELECT DISTINCT o.*
-          FROM {self.database}.raw_orders o
+          FROM {self.database}.after_clean_orders o
           JOIN filtered_order_products op ON o.order_id = op.order_id
         ),
         filtered_products AS (
           SELECT p.*
-          FROM {self.database}.raw_products p
+          FROM {self.database}.after_clean_products p
           WHERE 1=1 {department_filter}
         ),
         filtered_departments AS (
           SELECT d.*
-          FROM {self.database}.raw_departments d
+          FROM {self.database}.after_clean_departments d
           {departments_where_clause}
         )
         SELECT 
@@ -1340,7 +1340,7 @@ class AthenaAnalyzer:
         SELECT 
           'Total Aisles' as metric,
           COUNT(DISTINCT aisle_id) as value
-        FROM {self.database}.raw_aisles
+        FROM {self.database}.after_clean_aisles
         """
         
         return self.execute_query(query, "data_summary", use_cache=use_cache)
@@ -1354,7 +1354,7 @@ class AthenaAnalyzer:
             else:
                 # List all cached files
                 response = self.s3_client.list_objects_v2(
-                    Bucket='insightflow-dev-raw-bucket',
+                    Bucket='insightflow-dev-clean-bucket',
                     Prefix='athena-cache/'
                 )
                 cached_files = [obj['Key'] for obj in response.get('Contents', [])]
@@ -1366,7 +1366,7 @@ class AthenaAnalyzer:
             # Check specific cache file
             try:
                 head_response = self.s3_client.head_object(
-                    Bucket='insightflow-dev-raw-bucket', 
+                    Bucket='insightflow-dev-clean-bucket', 
                     Key=cache_key
                 )
                 print(f"✅ Cache file exists: {cache_key}")
@@ -1375,7 +1375,7 @@ class AthenaAnalyzer:
                 
                 # Try to read the file
                 response = self.s3_client.get_object(
-                    Bucket='insightflow-dev-raw-bucket', 
+                    Bucket='insightflow-dev-clean-bucket', 
                     Key=cache_key
                 )
                 parquet_content = response['Body'].read()
@@ -1397,14 +1397,14 @@ class AthenaAnalyzer:
         """Clear all cached results"""
         try:
             response = self.s3_client.list_objects_v2(
-                Bucket='insightflow-dev-raw-bucket',
+                Bucket='insightflow-dev-clean-bucket',
                 Prefix='athena-cache/'
             )
             cached_files = [obj['Key'] for obj in response.get('Contents', [])]
             
             for file_key in cached_files:
                 self.s3_client.delete_object(
-                    Bucket='insightflow-dev-raw-bucket',
+                    Bucket='insightflow-dev-clean-bucket',
                     Key=file_key
                 )
                 print(f"🗑️ Deleted: {file_key}")
@@ -1421,46 +1421,46 @@ class AthenaAnalyzer:
             test_queries = [
                 f"""
                 SELECT 
-                    'raw_orders' as table_name,
+                    'after_clean_orders' as table_name,
                     'user_id' as column_name,
                     typeof(user_id) as data_type
-                FROM {self.database}.raw_orders 
+                FROM {self.database}.after_clean_orders 
                 LIMIT 1
                 """,
                 f"""
                 SELECT 
-                    'raw_order_products_prior' as table_name,
+                    'after_clean_order_products_prior' as table_name,
                     'reordered' as column_name,
                     typeof(reordered) as data_type,
                     reordered as sample_value
-                FROM {self.database}.raw_order_products_prior 
+                FROM {self.database}.after_clean_order_products_prior 
                 LIMIT 1
                 """,
                 f"""
                 SELECT 
-                    'raw_order_products_prior' as table_name,
+                    'after_clean_order_products_prior' as table_name,
                     'add_to_cart_order' as column_name,
                     typeof(add_to_cart_order) as data_type,
                     add_to_cart_order as sample_value
-                FROM {self.database}.raw_order_products_prior 
+                FROM {self.database}.after_clean_order_products_prior 
                 LIMIT 1
                 """,
                 f"""
                 SELECT 
-                    'raw_products' as table_name,
+                    'after_clean_products' as table_name,
                     'product_id' as column_name,
                     typeof(product_id) as data_type,
                     product_id as sample_value
-                FROM {self.database}.raw_products 
+                FROM {self.database}.after_clean_products 
                 LIMIT 1
                 """,
                 f"""
                 SELECT 
-                    'raw_orders' as table_name,
+                    'after_clean_orders' as table_name,
                     'days_since_prior' as column_name,
                     typeof(days_since_prior) as data_type,
                     days_since_prior as sample_value
-                FROM {self.database}.raw_orders 
+                FROM {self.database}.after_clean_orders 
                 LIMIT 1
                 """
             ]
@@ -1657,7 +1657,7 @@ def test_connection():
         athena_analyzer = AthenaAnalyzer()
         
         # Test a simple query
-        test_query = "SELECT COUNT(*) as total FROM insightflow_imba_raw_data_catalog.raw_products LIMIT 1"
+        test_query = "SELECT COUNT(*) as total FROM insightflow_imba_clean_data_catalog.after_clean_products LIMIT 1"
         result = athena_analyzer.execute_query(test_query, "test_connection")
         
         print("✅ Connection successful!")

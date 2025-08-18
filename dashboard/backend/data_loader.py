@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 _global_data = None
 
 class AthenaDataLoader:
-    def __init__(self, region='ap-southeast-2', database='insightflow_imba_raw_data_catalog'):
+    def __init__(self, region='ap-southeast-2', database='insightflow_imba_clean_data_catalog'):
         # Set AWS credentials from environment variables if available
         import os
         aws_access_key = os.getenv('AWS_ACCESS_KEY_ID')
@@ -79,24 +79,24 @@ class AthenaDataLoader:
         self.s3_client = session.client('s3')
         self.database = database
         # Updated to use raw bucket for output
-        self.output_location = 's3://insightflow-dev-raw-bucket/athena-results/'
-        self.cache_location = 's3://insightflow-dev-raw-bucket/athena-cache/'
+        self.output_location = 's3://insightflow-dev-clean-bucket/athena-results/'
+        self.cache_location = 's3://insightflow-dev-clean-bucket/athena-cache/'
         
         # Test the connection
         try:
             # Test if we can access the S3 bucket
-            self.s3_client.head_bucket(Bucket='insightflow-dev-raw-bucket')
-            logger.info(f"✅ Successfully connected to S3 bucket: insightflow-dev-raw-bucket")
+            self.s3_client.head_bucket(Bucket='insightflow-dev-clean-bucket')
+            logger.info(f"✅ Successfully connected to S3 bucket: insightflow-dev-clean-bucket")
         except Exception as e:
             logger.warning(f"⚠️ Could not access S3 bucket: {e}")
             # Try to create the directories if they don't exist
             try:
                 self.s3_client.put_object(
-                    Bucket='insightflow-dev-raw-bucket',
+                    Bucket='insightflow-dev-clean-bucket',
                     Key='athena-results/'
                 )
                 self.s3_client.put_object(
-                    Bucket='insightflow-dev-raw-bucket',
+                    Bucket='insightflow-dev-clean-bucket',
                     Key='athena-cache/'
                 )
                 logger.info("✅ Created athena-results and athena-cache directories in S3 bucket")
@@ -114,14 +114,14 @@ class AthenaDataLoader:
             
             # Check if cached file exists
             try:
-                self.s3_client.head_object(Bucket='insightflow-dev-raw-bucket', Key=cache_key)
+                self.s3_client.head_object(Bucket='insightflow-dev-clean-bucket', Key=cache_key)
                 logger.info(f"📋 Found cached result for query hash: {query_hash}")
             except:
                 logger.info(f"📋 No cached result found for query hash: {query_hash}")
                 return None
             
             # Download and load cached result
-            response = self.s3_client.get_object(Bucket='insightflow-dev-raw-bucket', Key=cache_key)
+            response = self.s3_client.get_object(Bucket='insightflow-dev-clean-bucket', Key=cache_key)
             
             # Read the entire content into memory first
             parquet_content = response['Body'].read()
@@ -151,7 +151,7 @@ class AthenaDataLoader:
             
             # Upload to S3
             self.s3_client.put_object(
-                Bucket='insightflow-dev-raw-bucket',
+                Bucket='insightflow-dev-clean-bucket',
                 Key=cache_key,
                 Body=parquet_content
             )
@@ -292,9 +292,9 @@ def load_products_for_vector_store():
             a.aisle,
             p.department_id,
             d.department
-        FROM {athena_loader.database}.raw_products p
-        LEFT JOIN {athena_loader.database}.raw_aisles a ON p.aisle_id = a.aisle_id
-        LEFT JOIN {athena_loader.database}.raw_departments d ON p.department_id = d.department_id
+        FROM {athena_loader.database}.after_clean_products p
+        LEFT JOIN {athena_loader.database}.after_clean_aisles a ON p.aisle_id = a.aisle_id
+        LEFT JOIN {athena_loader.database}.after_clean_departments d ON p.department_id = d.department_id
         ORDER BY p.product_id
         """
         
@@ -319,7 +319,7 @@ def load_data_for_ml_model(batch_size: int = 1000, max_users: int = 20000):
         # First, get all user IDs that we need to process
         users_query = f"""
         SELECT DISTINCT user_id
-        FROM {athena_loader.database}.raw_orders
+        FROM {athena_loader.database}.after_clean_orders
         WHERE user_id < {max_users}
         ORDER BY user_id
         """
@@ -350,24 +350,17 @@ def load_data_for_ml_model(batch_size: int = 1000, max_users: int = 20000):
             user_id_list = ','.join(map(str, batch_user_ids))
             
             # Query orders for this batch
-            orders_query = f"""
-            SELECT 
-                order_id,
-                user_id,
-                order_number,
-                order_dow,
-                order_hour_of_day,
-                days_since_prior
-            FROM {athena_loader.database}.raw_orders
-            WHERE user_id IN ({user_id_list})
-            ORDER BY user_id, order_number
-            """
+            orders_path = 's3://insightflow-dev-clean-bucket/after-clean/after-MICE/run-20250814-003614/orders_imputed.parquet'
+            batch_orders = pd.read_parquet(orders_path)
+            batch_orders = batch_orders[batch_orders['user_id'].isin(batch_user_ids)]
+            batch_orders = batch_orders.sort_values(by=["user_id", "order_number"])
+
             
             # Query order_products_prior for this batch (only from raw_order_products_prior table)
             order_products_prior_query = f"""
             WITH selected_orders AS (
                 SELECT DISTINCT order_id
-                FROM {athena_loader.database}.raw_orders
+                FROM {athena_loader.database}.after_clean_orders
                 WHERE user_id IN ({user_id_list})
             )
             SELECT 
@@ -375,20 +368,18 @@ def load_data_for_ml_model(batch_size: int = 1000, max_users: int = 20000):
                 op.product_id,
                 op.add_to_cart_order,
                 op.reordered
-            FROM {athena_loader.database}.raw_order_products_prior op
+            FROM {athena_loader.database}.after_clean_order_products_prior op
             INNER JOIN selected_orders so ON op.order_id = so.order_id
             ORDER BY op.order_id, op.add_to_cart_order
             """
             
             # Execute queries for this batch
             try:
-                batch_orders = athena_loader.execute_query(
-                    orders_query, 
-                    f"orders_for_ml_model_batch_{batch_start}_{batch_end}", 
-                    use_cache=True, 
-                    max_rows=batch_size * 100  # Allow more rows per batch for orders
-                )
-                
+                orders_path = 's3://insightflow-dev-clean-bucket/after-clean/after-MICE/run-20250814-003614/orders_imputed.parquet'
+                batch_orders = pd.read_parquet(orders_path)
+                batch_orders = batch_orders[batch_orders['user_id'].isin(batch_user_ids)]
+                batch_orders = batch_orders.sort_values(by=["user_id", "order_number"])
+                 
                 batch_order_products_prior = athena_loader.execute_query(
                     order_products_prior_query, 
                     f"order_products_prior_for_ml_model_batch_{batch_start}_{batch_end}", 
