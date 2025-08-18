@@ -20,7 +20,7 @@ on:
           - 'false'
           - 'true'
   push:
-    branches: [main, IF-25-raw-data-ETL, feature/upload_env_s3]
+    branches: [main, IF-25-raw-data-ETL]
     paths:
       - 'terraform/dev/main.tf'
       - 'terraform/dev/variables.tf'
@@ -207,22 +207,22 @@ jobs:
           aws s3 cp .env s3://insightflow-dev-scripts-bucket/env/.env
           echo "✅ .env file uploaded to S3"
 
-      # # --- VPC ---
-      # - name: Terraform Plan (VPC Only)
-      #   run: terraform plan -input=false -target=module.vpc
-      #   working-directory: terraform/dev
+      # --- VPC ---
+      - name: Terraform Plan (VPC Only)
+        run: terraform plan -input=false -target=module.vpc
+        working-directory: terraform/dev
 
-      # - name: Terraform Apply (VPC Only) with Retry
-      #   uses: nick-fields/retry@v3
-      #   with:
-      #     timeout_minutes: 10
-      #     max_attempts: 3
-      #     retry_wait_seconds: 30
-      #     command: |
-      #       cd terraform/dev
-      #       terraform apply -auto-approve -target=module.vpc
+      - name: Terraform Apply (VPC Only) with Retry
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 10
+          max_attempts: 3
+          retry_wait_seconds: 30
+          command: |
+            cd terraform/dev
+            terraform apply -auto-approve -target=module.vpc
 
-      # # --- RDS PostgreSQL ---
+      # --- RDS PostgreSQL ---
       # - name: Check and handle existing DB subnet group
       #   run: |
       #     echo "🔍 Checking if DB subnet group exists..."
@@ -279,37 +279,76 @@ jobs:
       #       cd terraform/dev
       #       terraform apply -auto-approve -target=module.rds_postgresql
 
-      # # --- EC2 ---
-      # - name: Terraform Plan (EC2 Only)
-      #   run: terraform plan -input=false -target=module.ec2
-      #   working-directory: terraform/dev
+      # --- EC2 ---
+      - name: Terraform Plan (EC2 Only)
+        run: terraform plan -input=false -target=module.ec2
+        working-directory: terraform/dev
 
-      # - name: Terraform Apply (EC2 Only) with Retry
-      #   uses: nick-fields/retry@v3
-      #   with:
-      #     timeout_minutes: 10
-      #     max_attempts: 3
-      #     retry_wait_seconds: 30
-      #     command: |
-      #       cd terraform/dev
-      #       terraform apply -auto-approve -target=module.ec2
+      - name: Terraform Apply (EC2 Only) with Retry
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 10
+          max_attempts: 3
+          retry_wait_seconds: 30
+          command: |
+            cd terraform/dev
+            terraform apply -auto-approve -target=module.ec2
       
-      # # --- Glue Tables ---
-      # - name: Terraform Plan (Glue Tables Only)
-      #   run: terraform plan -input=false -target=module.glue_tables
-      #   working-directory: terraform/dev
+      # --- Glue Tables ---
+      - name: Terraform Plan (Glue Tables Only)
+        run: terraform plan -input=false -target=module.glue_tables
+        working-directory: terraform/dev
 
-      # - name: Terraform Apply (Glue Tables Only)
-      #   run: |
-      #     cd terraform/dev
-      #     terraform apply -auto-approve -target=module.glue_tables
+      - name: Terraform Apply (Glue Tables Only)
+        run: |
+          cd terraform/dev
+          terraform apply -auto-approve -target=module.glue_tables
       
-      # # --- Batch Ingestion ---
-      # - name: Terraform Plan (Batch Ingestion Only)
-      #   run: terraform plan -input=false -target=module.batch_ingestion
+      # --- Batch Ingestion ---
+      - name: Terraform Plan (Batch Ingestion Only)
+        run: terraform plan -input=false -target=module.batch_ingestion
+        working-directory: terraform/dev
+
+      - name: Terraform Apply (Batch Ingestion Only) with Retry
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 15
+          max_attempts: 3
+          retry_wait_seconds: 60
+          command: |
+            cd terraform/dev
+            terraform apply -auto-approve -target=module.batch_ingestion
+
+      # =============================
+      # Optional: Trigger ETL Pipeline
+      # =============================
+      - name: Trigger ETL Pipeline (Optional)
+        if: github.event.inputs.trigger_etl_after == 'true'
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const result = await github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'deploy_etl_pipeline.yml',
+              ref: context.ref,
+              inputs: {
+                skip_prerequisites_check: 'true'
+              }
+            });
+            console.log('✅ ETL pipeline workflow triggered successfully');
+
+      # =============================
+      # Temporarily Disabled Modules
+      # =============================
+      # NOTE: The following modules are commented out and can be enabled when needed
+
+      # --- Streaming Ingestion (Temporarily Disabled) ---
+      # - name: Terraform Plan (Streaming Ingestion Only)
+      #   run: terraform plan -input=false -target=module.streaming_ingestion
       #   working-directory: terraform/dev
 
-      # - name: Terraform Apply (Batch Ingestion Only) with Retry
+      # - name: Terraform Apply (Streaming Ingestion Only) with Retry
       #   uses: nick-fields/retry@v3
       #   with:
       #     timeout_minutes: 15
@@ -317,73 +356,34 @@ jobs:
       #     retry_wait_seconds: 60
       #     command: |
       #       cd terraform/dev
-      #       terraform apply -auto-approve -target=module.batch_ingestion
+      #       terraform apply -auto-approve -target=module.streaming_ingestion
 
-      # # =============================
-      # # Optional: Trigger ETL Pipeline
-      # # =============================
-      # - name: Trigger ETL Pipeline (Optional)
-      #   if: github.event.inputs.trigger_etl_after == 'true'
-      #   uses: actions/github-script@v6
+      # --- Glue Crawler Raw (Temporarily Disabled) ---
+      # - name: Terraform Plan (Glue Crawler Raw Only)
+      #   run: terraform plan -input=false -target=module.glue_crawler_raw
+      #   working-directory: terraform/dev
+
+      # - name: Terraform Apply (Glue Crawler Raw Only) with Retry
+      #   uses: nick-fields/retry@v3
       #   with:
-      #     script: |
-      #       const result = await github.rest.actions.createWorkflowDispatch({
-      #         owner: context.repo.owner,
-      #         repo: context.repo.repo,
-      #         workflow_id: 'deploy_etl_pipeline.yml',
-      #         ref: context.ref,
-      #         inputs: {
-      #           skip_prerequisites_check: 'true'
-      #         }
-      #       });
-      #       console.log('✅ ETL pipeline workflow triggered successfully');
+      #     timeout_minutes: 15
+      #     max_attempts: 3
+      #     retry_wait_seconds: 60
+      #     command: |
+      #       cd terraform/dev
+      #       terraform apply -auto-approve -target=module.glue_crawler_raw
 
-      # # =============================
-      # # Temporarily Disabled Modules
-      # # =============================
-      # # NOTE: The following modules are commented out and can be enabled when needed
+      # --- Data Sync Raw (Temporarily Disabled) ---
+      # - name: Terraform Plan (Data Sync Raw Only)
+      #   run: terraform plan -input=false -target=module.data_sync_raw
+      #   working-directory: terraform/dev
 
-      # # --- Streaming Ingestion (Temporarily Disabled) ---
-      # # - name: Terraform Plan (Streaming Ingestion Only)
-      # #   run: terraform plan -input=false -target=module.streaming_ingestion
-      # #   working-directory: terraform/dev
-
-      # # - name: Terraform Apply (Streaming Ingestion Only) with Retry
-      # #   uses: nick-fields/retry@v3
-      # #   with:
-      # #     timeout_minutes: 15
-      # #     max_attempts: 3
-      # #     retry_wait_seconds: 60
-      # #     command: |
-      # #       cd terraform/dev
-      # #       terraform apply -auto-approve -target=module.streaming_ingestion
-
-      # # --- Glue Crawler Raw (Temporarily Disabled) ---
-      # # - name: Terraform Plan (Glue Crawler Raw Only)
-      # #   run: terraform plan -input=false -target=module.glue_crawler_raw
-      # #   working-directory: terraform/dev
-
-      # # - name: Terraform Apply (Glue Crawler Raw Only) with Retry
-      # #   uses: nick-fields/retry@v3
-      # #   with:
-      # #     timeout_minutes: 15
-      # #     max_attempts: 3
-      # #     retry_wait_seconds: 60
-      # #     command: |
-      # #       cd terraform/dev
-      # #       terraform apply -auto-approve -target=module.glue_crawler_raw
-
-      # # --- Data Sync Raw (Temporarily Disabled) ---
-      # # - name: Terraform Plan (Data Sync Raw Only)
-      # #   run: terraform plan -input=false -target=module.data_sync_raw
-      # #   working-directory: terraform/dev
-
-      # # - name: Terraform Apply (Data Sync Raw Only) with Retry
-      # #   uses: nick-fields/retry@v3
-      # #   with:
-      # #     timeout_minutes: 15
-      # #     max_attempts: 3
-      # #     retry_wait_seconds: 60
-      # #     command: |
-      # #       cd terraform/dev
-      # #       terraform apply -auto-approve -target=module.data_sync_raw
+      # - name: Terraform Apply (Data Sync Raw Only) with Retry
+      #   uses: nick-fields/retry@v3
+      #   with:
+      #     timeout_minutes: 15
+      #     max_attempts: 3
+      #     retry_wait_seconds: 60
+      #     command: |
+      #       cd terraform/dev
+      #       terraform apply -auto-approve -target=module.data_sync_raw
