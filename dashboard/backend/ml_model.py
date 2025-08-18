@@ -34,7 +34,7 @@ def initialize_ml_model():
     if spark is None:
         spark = SparkSession.builder.appName("ALSModelBackend").getOrCreate()
     if als_model is None:
-        model_path = os.getenv("ALS_MODEL_PATH", "backend/als_model")
+        model_path = os.getenv("ALS_MODEL_PATH", "als_model")
         als_model = ALSModel.load(model_path)
 
 def get_user_product_score(user_id, product_id, normalize=True):

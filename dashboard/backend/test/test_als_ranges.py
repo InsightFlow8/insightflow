@@ -36,7 +36,7 @@ def analyze_als_score_ranges():
 
     # Only sample the top 5 recommendations for the first 50 users
     sample_recommendations = []
-    sample_users = user_factors['id'].head(100).tolist()
+    sample_users = user_factors['id'].head(50).tolist()
 
     for user_id in sample_users:
         recs = recommend_for_user(user_id, N=1, normalize=False)
@@ -74,13 +74,10 @@ def test_als_score_ranges():
 
     logging.info("🧪 Testing ALS score ranges...")
 
-    # Test a few specific user-product pairs
-    test_cases = [
-        (1, 1),   # User 1, Product 1
-        (1, 100), # User 1, Product 100
-        (100, 1), # User 100, Product 1
-        (100, 100), # User 100, Product 100
-    ]
+    # Test a grid of user-product pairs
+    test_users = [1, 100, 1000, 2000, 10000]
+    test_products = [1, 100, 1000, 2000, 10000, 20000]
+    test_cases = [(u, p) for u in test_users for p in test_products]
 
     for user_id, product_id in test_cases:
         raw_score = get_user_product_score(user_id, product_id, normalize=False)

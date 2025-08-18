@@ -205,6 +205,7 @@ def render_chat_interface():
         "Suggest 3 products",
         "Show similar users",
         "Find dairy products",
+        "Show milk with vitamins",
         "Will the user buy apples?",
         "Show me 6 beverages"
     ]
