@@ -24,3 +24,4 @@ venv/
 .venv/
 
 .cursor/
+.DS_Store
