@@ -64,8 +64,22 @@ resource "aws_iam_role_policy" "batch_ingestion_lambda_policy" {
           var.raw_database_arn,
           "arn:aws:glue:${var.aws_region}:*:table/${var.raw_database_name}/*"
         ]
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "ec2:CreateNetworkInterface",
+          "ec2:DescribeNetworkInterfaces",
+          "ec2:DeleteNetworkInterface",
+          "ec2:DescribeVpcs",
+          "ec2:DescribeSubnets",
+          "ec2:DescribeSecurityGroups"
+        ]
+        Resource = "*"
       }
     ]
   })
 }
+
+
 # IAM role for the batch ingestion Lambda function

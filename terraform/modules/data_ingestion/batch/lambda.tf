@@ -17,4 +17,9 @@ resource "aws_lambda_function" "batch_ingestion" {
       CLEAN_BUCKET          = var.clean_bucket
     }
   }
+
+  vpc_config {
+    subnet_ids         = var.private_subnet_ids
+    security_group_ids = [var.lambda_sync_raw_security_group_id]
+  }
 }

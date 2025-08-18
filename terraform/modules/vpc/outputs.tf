@@ -35,6 +35,11 @@ output "lambda_sync_raw_security_group_id" {
   value       = aws_security_group.lambda_sg.id
 }
 
+output "glue_security_group_id" {
+  description = "ID of the Glue security group"
+  value       = aws_security_group.glue.id
+}
+
 # output "dms_security_group_id" {
 #   description = "ID of the DMS replication instance security group"
 #   value       = aws_security_group.dms_sg.id

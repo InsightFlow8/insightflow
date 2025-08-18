@@ -2,8 +2,8 @@
 # 顶层 Terraform 入口，包含 provider 配置与 module 加载.
 
 provider "aws" {
-  region = var.aws_region
-  # profile = "insightflow" # aws cli credential profile
+  region  = var.aws_region
+  profile = "insightflow" # aws cli credential profile
 }
 
 data "aws_caller_identity" "current" {}
@@ -80,6 +80,9 @@ module "batch_ingestion" {
   clean_bucket      = var.clean_bucket
   raw_database_arn  = module.glue_tables.raw_database_arn
   raw_database_name = module.glue_tables.raw_database_name
+
+  private_subnet_ids                = module.vpc.private_subnet_ids
+  lambda_sync_raw_security_group_id = module.vpc.lambda_sync_raw_security_group_id
 
   # 确保 S3 bucket 相关资源先于数据采集模块创建
   depends_on = [module.s3_buckets, module.glue_tables]
@@ -251,6 +254,10 @@ module "etl_data_clean" {
   number_of_workers = var.etl_number_of_workers
   worker_type       = var.etl_worker_type
 
+  # VPC Configuration
+  private_subnet_ids     = module.vpc.private_subnet_ids
+  glue_security_group_id = module.vpc.glue_security_group_id
+
   tags = {
     Project     = "InsightFlow"
     Environment = "dev"
@@ -333,6 +340,10 @@ module "etl_data_transformation" {
   glue_version      = var.etl_glue_version
   number_of_workers = var.etl_number_of_workers
   worker_type       = var.etl_worker_type
+
+  # VPC Configuration
+  private_subnet_ids     = module.vpc.private_subnet_ids
+  glue_security_group_id = module.vpc.glue_security_group_id
 
   tags = {
     Project     = "InsightFlow"

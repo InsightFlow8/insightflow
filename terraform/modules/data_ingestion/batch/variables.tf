@@ -81,3 +81,13 @@ variable "raw_database_name" {
   description = "Name of the Glue catalog database for raw data"
   type        = string
 }
+
+variable "private_subnet_ids" {
+  description = "Private subnet IDs"
+  type        = list(string)
+}
+
+variable "lambda_sync_raw_security_group_id" {
+  description = "Security group ID for the application"
+  type        = string
+}
