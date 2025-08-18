@@ -112,14 +112,14 @@ fi
 check_status "Docker Compose installation"
 
 # Install Git and Git LFS
-log_message "📦 Installing Git and Git LFS..."
+log_message "📦 Installing Git..."
 sudo dnf install git -y 
 check_status "Git installation"
 
 # Clone the project from the specific branch
 # NOTE: This creates the insightflow folder in the current working directory (/root/)
 log_message "📥 Cloning project from GitHub..."
-git clone -b IF-5-Dashboard-S3VectorBucket-Athena https://github.com/InsightFlow8/insightflow.git
+git clone -b main https://github.com/InsightFlow8/insightflow.git
 check_status "Project cloning"
 
 cd insightflow/dashboard
