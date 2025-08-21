@@ -8,7 +8,15 @@ s3:
   # 只读输入
   raw_after_clean: s3://insightflow-dev-clean-bucket/after-clean/orders/
   raw_after_transformation: s3://insightflow-dev-clean-bucket/after-transformation/
+
+  # 存放脚本
+  scripts_bucket: insightflow-dev-scripts-bucket
+  scripts_prefix: ML/     # 你想建 ML 或 machine-learning 都行，这里随便配
   
+  # 产物/结果 输出目录
+  clean_bucket: insightflow-dev-clean-bucket
+  curated_bucket: insightflow-dev-curated-bucket
+
   # 本模块写入（建议保留这个前缀） base_output：放训练模型等（仍在 clean 层，便于后续部署/调用）
   base_output: s3://insightflow-dev-clean-bucket/ml/recsys
   # eval_output：评估产物（建议在 curated 层，如需放到 clean 层，改这里就行）
@@ -20,18 +28,24 @@ s3:
   # 构建 rating 矩阵
   order_products_prior: s3://insightflow-dev-clean-bucket/after-clean/order_products_prior/
   order_products_train: s3://insightflow-dev-clean-bucket/after-clean/order_products_train/
-  mice_orders_latest: s3://insightflow-dev-clean-bucket/after-clean/after-MICE/latest/orders.parquet
+  mice_orders_latest: s3://insightflow-dev-clean-bucket/after-clean/after-MICE/latest/orders_imputed.parquet
   upi_features_out: s3://insightflow-dev-clean-bucket/after-transformation/upi_features/
   ratings_latest: s3://insightflow-dev-clean-bucket/after-transformation/upi_features/latest/ratings.parquet
 
   # 评估产物
   eval_out_base: s3://insightflow-dev-curated-bucket/recsys/eval/
+  eval_charts_base: s3://insightflow-dev-curated-bucket/recsys/eval_charts/
 
 processing:
   instance_type: ml.t3.xlarge
   instance_count: 1
   volume_gb: 100
-  max_runtime_sec: 5400
+  max_runtime_sec: 1800   # 上限时间降，避免跑飞（例如 30 分钟）
+  shuffle_partitions: 200 # 控制每次 shuffle 之后的分区数，默认值就是 200（Spark 3.x 的默认值）再 OOM 就调大（比如 320/400）：每个 task 吃更少内存，减少内存压力（但任务多了，整体可能慢一点）
+
+mice: 
+  chains: 7 
+  iters: 10
 
 training:
   instance_type: ml.t3.xlarge
@@ -49,4 +63,36 @@ training:
 inference:
   instance_type: ml.t3.medium
   instance_count: 1
-  top_k: 20  # 评估/推荐时的 K 值（als_eval.py & batch 推荐都会用到）
+  top_k: 10  # 评估/推荐时的 K 值（als_eval.py & batch 推荐都会用到）
+
+eval:
+  top_k: 10
+  candidate_k: 15            # 评估时先取候选再重排
+  filter_seen: false         # 先关，减少一次大 join
+  blend:
+    enabled: true
+    gamma: 0.3                # ALS vs 热度混合权重
+    #pop_window_days: 90       # 热度统计窗口（天），不懂日期时忽略
+  mmr:
+    enabled: true             # 先关 启用 MMR 时会把 全部 itemFactors 收到 driver 再广播（每个商品一条 embedding）
+    lambda: 0.3               # 多样性重排 λ
+    item_vec_source: "als"    # 余弦相似度基于 ALS item 因子
+
+data:
+#   # 训练权重（第4步会产出）
+#   ratings_bm25_time_s3: "s3://<your-bucket>/after-transformation/ratings_bm25_time/latest/"
+#   # 热度、分群等派生数据（第2/7步会产出）
+#   popularity_s3: "s3://<your-bucket>/after-transformation/popularity/latest/"
+  user_seg_s3: "s3://insightflow-dev-curated-bucket/recsys/user_seg/latest/user_seg.parquet/"
+  segment_pop_s3: "s3://insightflow-dev-curated-bucket/recsys/segment_popularity/latest/segment_popularity.parquet/"
+
+reporting:
+  eval_charts_root: s3://insightflow-dev-curated-bucket/eval_charts/
+  publish_after_eval: false   # 先关着；若用 ‘评估 Job 结束后自动发布’ 方案再开
+
+
+seg:
+  k: 10          # 分群数
+  r_cap: 60      # R 截断（天）
+  top_n: 30     # 每个分群保留的 TopN 商品
+  beta: 500      # 热度平滑强度（越大越靠全局）
