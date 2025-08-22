@@ -137,10 +137,10 @@ s3://<curated_bucket>/recsys/
 ## 5. 典型运行命令
 ```bash
 # 发布评估图表 （从 eval/ 汇总趋势）
-python functions/modules/ml/publish_eval_charts.py --config configs/recsys.yaml
+python ml/publish_eval_charts.py --config configs/recsys.yaml
 
 # RFM 可视化 + 小样本导出
-python functions/modules/ml/rfm_analysis_and_export.py \
-  --config configs/recsys.yaml \
+python ml/rfm_analysis_and_export.py \
+  --config ml/configs/recsys.yaml \
   --strict_parquet --pca_sample 50000 \
   --hv_n 150 --rand_n 150 --topn_per_segment 5 --seed 42

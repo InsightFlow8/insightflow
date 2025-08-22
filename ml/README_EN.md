@@ -129,11 +129,11 @@ s3://<curated_bucket>/recsys/
 
 ```
 # Publish evaluation charts (from eval/)
-python functions/modules/ml/publish_eval_charts.py --config configs/recsys.yaml
+python ml/publish_eval_charts.py --config configs/recsys.yaml
 
 # RFM visualization + sample exports
-python functions/modules/ml/rfm_analysis_and_export.py \
-  --config configs/recsys.yaml \
+python ml/rfm_analysis_and_export.py \
+  --config ml/configs/recsys.yaml \
   --strict_parquet --pca_sample 50000 \
   --hv_n 150 --rand_n 150 --topn_per_segment 5 --seed 42
 ```
