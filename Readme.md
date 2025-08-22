@@ -5,6 +5,58 @@
 
 This repository provides a modular, production-grade data ingestion pipeline for AWS, focusing on the batch and streaming ingestion of data from Snowflake and other sources into S3. The pipeline is fully managed via Terraform (IaC) and supports automated deployment through GitHub Actions.
 
+## Dataset Description
+
+The project works with a comprehensive grocery order dataset from Instacart, designed to predict which products will be in a user's next order. The dataset contains anonymized data from over 3 million grocery orders across more than 200,000 users.
+
+### **Dataset Goal**
+Predict which products will be in a user's next order using machine learning and collaborative filtering techniques.
+
+### **Data Structure**
+
+#### **Core Tables:**
+
+**`orders`** (3.4M rows, 206K users):
+- `order_id`: Order identifier
+- `user_id`: Customer identifier  
+- `eval_set`: Evaluation set classification (prior/train/test)
+- `order_number`: Order sequence number for user (1 = first, n = nth)
+- `order_dow`: Day of week order was placed
+- `order_hour_of_day`: Hour of day order was placed
+- `days_since_prior`: Days since last order (capped at 30, NA for first order)
+
+**`products`** (50K rows):
+- `product_id`: Product identifier
+- `product_name`: Product name
+- `aisle_id`: Foreign key to aisles table
+- `department_id`: Foreign key to departments table
+
+**`aisles`** (134 rows):
+- `aisle_id`: Aisle identifier
+- `aisle`: Aisle name
+
+**`departments`** (21 rows):
+- `department_id`: Department identifier
+- `department`: Department name
+
+**`order_products__SET`** (30M+ rows):
+- `order_id`: Foreign key to orders table
+- `product_id`: Foreign key to products table
+- `add_to_cart_order`: Order products were added to cart
+- `reordered`: Binary indicator (1 = previously ordered by user, 0 = new)
+
+### **Evaluation Sets**
+The dataset is split into three evaluation sets:
+- **`"prior"`**: Orders prior to user's most recent order (~3.2M orders)
+- **`"train"`**: Training data for model development (~131K orders)  
+- **`"test"`**: Test data reserved for ML competitions (~75K orders)
+
+### **Data Characteristics**
+- **Scale**: 3.4M+ orders, 200K+ users, 50K+ products
+- **Temporal**: Sequential order data with time-based features
+- **Hierarchical**: Products organized by aisles and departments
+- **Behavioral**: Includes reorder patterns and cart addition sequences
+
 ![Architecture](imba_architecture.drawio.png)
 ![Data Pipeline Diagram](data_ingestion_20250802.png)
 
