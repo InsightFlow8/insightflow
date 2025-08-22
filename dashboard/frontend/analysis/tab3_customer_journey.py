@@ -75,6 +75,8 @@ def render_customer_journey_tab(athena_analyzer):
                             st.info(f"**Reordered Items:** {df['reordered_items'].iloc[0]:,} ({reorder_rate:.1f}%)")
                         except (KeyError, IndexError, ZeroDivisionError):
                             st.info("**Reordered Items:** N/A")
+                    else:
+                        st.info("**Reordered Items:** N/A")
                     
                     if 'small_orders' in df.columns and 'medium_orders' in df.columns and 'large_orders' in df.columns:
                         try:
@@ -83,6 +85,8 @@ def render_customer_journey_tab(athena_analyzer):
                             st.info(f"**Average Order Size:** {avg_order_size:.1f} items")
                         except (KeyError, IndexError, ZeroDivisionError):
                             st.info("**Average Order Size:** N/A")
+                    else:
+                        st.info("**Average Order Size:** N/A")
                 
                 with col2:
                     if 'first_time_customers' in df.columns and 'repeat_customers' in df.columns:
@@ -92,6 +96,8 @@ def render_customer_journey_tab(athena_analyzer):
                             st.info(f"**Loyal Customers (2+ orders):** {loyal_customers:,} ({loyal_customers/total_customers*100:.1f}%)")
                         except (KeyError, IndexError, ZeroDivisionError):
                             st.info("**Loyal Customers (2+ orders):** N/A")
+                    else:
+                        st.info("**Loyal Customers (2+ orders):** N/A")
                     
                     if 'total_orders' in df.columns and 'total_customers' in df.columns:
                         try:
@@ -99,6 +105,15 @@ def render_customer_journey_tab(athena_analyzer):
                             st.info(f"**Avg Orders per Customer:** {avg_orders_per_customer:.1f}")
                         except (KeyError, IndexError, ZeroDivisionError):
                             st.info("**Avg Orders per Customer:** N/A")
+                    else:
+                        st.info("**Avg Orders per Customer:** N/A")
+                
+                # Show data columns info for debugging
+                with st.expander("🔍 Data Structure"):
+                    st.write(f"**DataFrame Shape:** {df.shape}")
+                    st.write(f"**Available Columns:** {list(df.columns)}")
+                    st.write("**Sample Data:**")
+                    st.dataframe(df.head())
             else:
                 st.warning("No customer journey data found. Try adjusting the parameters.")
                 

@@ -111,7 +111,7 @@ if ! command -v docker-compose &> /dev/null; then
 fi
 check_status "Docker Compose installation"
 
-# Install Git and Git LFS
+# Install Git
 log_message "📦 Installing Git..."
 sudo dnf install git -y 
 check_status "Git installation"
@@ -132,7 +132,9 @@ check_status "Environment file download"
 # Download the latest ALS model (with error handling)
 log_message "🤖 Downloading ALS model from S3..."
 rm -rf backend/als_model && mkdir -p backend/als_model
-aws s3 cp s3://insightflow-dev-clean-bucket/ml/recsys/models/als-20250815-180121/als_model/ backend/als_model/
+aws s3 cp s3://insightflow-dev-clean-bucket/ml/recsys/models/als-20250815-180121/als_model/ backend/als_model/ --recursive
+aws s3 cp s3://insightflow-dev-curated-bucket/recsys/user_seg/run-20250821-082110/user_seg.parquet/ backend/user_seg.parquet/  --recursive
+aws s3 cp s3://insightflow-dev-curated-bucket/recsys/segment_popularity/run-20250821-082110/segment_popularity.parquet/ backend/segment_popularity.parquet/ --recursive
 
 # Build and run the dashboard
 log_message "🐳 Building and starting dashboard containers..."

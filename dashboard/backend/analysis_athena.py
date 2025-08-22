@@ -406,7 +406,7 @@ class AthenaAnalyzer:
             pp.pair_count
         FROM product_pairs pp
         JOIN {self.database}.after_clean_products p1 ON pp.product1_id = CAST(p1.product_id AS INTEGER)
-        JOIN {self.database}.after_clean_roducts p2 ON pp.product2_id = CAST(p2.product_id AS INTEGER)
+        JOIN {self.database}.after_clean_products p2 ON pp.product2_id = CAST(p2.product_id AS INTEGER)
         JOIN {self.database}.after_clean_departments d1 ON p1.department_id = d1.department_id
         JOIN {self.database}.after_clean_departments d2 ON p2.department_id = d2.department_id
         ORDER BY pp.pair_count DESC
@@ -415,47 +415,49 @@ class AthenaAnalyzer:
     def _get_customer_journey_query(self) -> str:
         """Get the customer journey query for materialized view"""
         return f"""
-    WITH combined_order_products AS (
-        SELECT * FROM {self.database}.after_clean_order_products_prior
-        UNION ALL
-        SELECT * FROM {self.database}.after_clean_order_products_train
-    ),
-    order_metrics AS (
-        SELECT 
-            o.order_id,
-            o.user_id,
-            COUNT(*) as items_in_order,
-            SUM(CASE WHEN op.reordered = '1' THEN 1 ELSE 0 END) as reordered_items,
-            MAX(CAST(op.add_to_cart_order AS INTEGER)) as order_size
-        FROM {self.database}.after_clean_orders o
-        JOIN combined_order_products op ON o.order_id = op.order_id
-        GROUP BY o.order_id, o.user_id
-    ),
-    customer_metrics AS (
-        SELECT 
-            user_id,
-            COUNT(DISTINCT order_id) as total_orders,
-            SUM(items_in_order) as total_items,
-            SUM(reordered_items) as total_reordered,
-            AVG(order_size) as avg_order_size
-        FROM order_metrics
-        GROUP BY user_id
-        LIMIT 10000
-    )
-    SELECT
-        COUNT(DISTINCT om.order_id) AS total_orders,
-        COUNT(DISTINCT om.user_id) AS total_customers,
-        SUM(CASE WHEN cm.total_orders = 1 THEN 1 ELSE 0 END) AS first_time_customers,
-        SUM(CASE WHEN cm.total_orders > 1 THEN 1 ELSE 0 END) AS repeat_customers,
-        SUM(om.items_in_order) AS total_items,
-        SUM(om.reordered_items) AS reordered_items,
-        SUM(om.items_in_order) - SUM(om.reordered_items) AS new_items,
-        SUM(CASE WHEN om.order_size <= 5 THEN 1 ELSE 0 END) AS small_orders,
-        SUM(CASE WHEN om.order_size > 5 AND om.order_size <= 15 THEN 1 ELSE 0 END) AS medium_orders,
-        SUM(CASE WHEN om.order_size > 15 THEN 1 ELSE 0 END) AS large_orders
-    FROM order_metrics om
-    JOIN customer_metrics cm ON om.user_id = cm.user_id
-    """
+        WITH combined_order_products AS (
+            SELECT * FROM {self.database}.after_clean_order_products_prior
+            UNION ALL
+            SELECT * FROM {self.database}.after_clean_order_products_train
+        ),
+        order_metrics AS (
+            SELECT 
+                o.order_id,
+                o.user_id,
+                COUNT(*) as items_in_order,
+                SUM(CASE WHEN CAST(op.reordered AS INTEGER) = 1 THEN 1 ELSE 0 END) as reordered_items,
+                MAX(CAST(op.add_to_cart_order AS INTEGER)) as order_size
+            FROM {self.database}.after_clean_orders o
+            JOIN combined_order_products op ON o.order_id = op.order_id
+            GROUP BY o.order_id, o.user_id
+        ),
+        customer_metrics AS (
+            SELECT 
+                user_id,
+                COUNT(DISTINCT order_id) as total_orders,
+                SUM(items_in_order) as total_items,
+                SUM(reordered_items) as total_reordered,
+                AVG(order_size) as avg_order_size
+            FROM order_metrics
+            GROUP BY user_id
+        ),
+        global_metrics AS (
+            SELECT
+                COUNT(DISTINCT om.order_id) AS total_orders,
+                COUNT(DISTINCT om.user_id) AS total_customers,
+                SUM(CASE WHEN cm.total_orders = 1 THEN 1 ELSE 0 END) AS first_time_customers,
+                SUM(CASE WHEN cm.total_orders > 1 THEN 1 ELSE 0 END) AS repeat_customers,
+                SUM(om.items_in_order) AS total_items,
+                SUM(om.reordered_items) AS reordered_items,
+                SUM(om.items_in_order) - SUM(om.reordered_items) AS new_items,
+                SUM(CASE WHEN om.order_size <= 5 THEN 1 ELSE 0 END) AS small_orders,
+                SUM(CASE WHEN om.order_size > 5 AND om.order_size <= 15 THEN 1 ELSE 0 END) AS medium_orders,
+                SUM(CASE WHEN om.order_size > 15 THEN 1 ELSE 0 END) AS large_orders
+            FROM order_metrics om
+            JOIN customer_metrics cm ON om.user_id = cm.user_id
+        )
+        SELECT * FROM global_metrics
+        """
 
     def _get_lifetime_value_query(self) -> str:
         """Get the lifetime value query for materialized view"""
@@ -470,7 +472,7 @@ class AthenaAnalyzer:
                 o.user_id,
                 COUNT(DISTINCT op.order_id) as total_orders,
                 COUNT(*) as total_items,
-                SUM(CASE WHEN op.reordered = '1' THEN 1 ELSE 0 END) as total_reorders,
+                SUM(CASE WHEN CAST(op.reordered AS INTEGER) = 1 THEN 1 ELSE 0 END) as total_reorders,
                 AVG(CAST(op.add_to_cart_order AS DOUBLE)) as avg_order_size,
                 MAX(CAST(o.order_number AS INTEGER)) as max_order_number
             FROM combined_order_products op
@@ -502,7 +504,7 @@ class AthenaAnalyzer:
             SELECT 
                 user_id,
                 order_number,
-                days_since_prior
+                days_since_prior_order
             FROM {self.database}.after_clean_orders
             WHERE CAST(order_number AS INTEGER) > 1  -- Only subsequent orders
         ),
@@ -511,16 +513,16 @@ class AthenaAnalyzer:
                 user_id,
                 MAX(CAST(order_number AS INTEGER)) AS total_orders,
                 AVG(CASE 
-                    WHEN days_since_prior IS NULL OR days_since_prior = '' THEN NULL
-                    ELSE CAST(days_since_prior AS DOUBLE)
+                    WHEN days_since_prior_order IS NULL OR days_since_prior_order = '' THEN NULL
+                    ELSE CAST(days_since_prior_order AS DOUBLE)
                 END) AS avg_days_between,
                 MAX(CASE 
-                    WHEN days_since_prior IS NULL OR days_since_prior = '' THEN NULL
-                    ELSE CAST(days_since_prior AS DOUBLE)
+                    WHEN days_since_prior_order IS NULL OR days_since_prior_order = '' THEN NULL
+                    ELSE CAST(days_since_prior_order AS DOUBLE)
                 END) AS max_days_between,
                 STDDEV(CASE 
-                    WHEN days_since_prior IS NULL OR days_since_prior = '' THEN NULL
-                    ELSE CAST(days_since_prior AS DOUBLE)
+                    WHEN days_since_prior_order IS NULL OR days_since_prior_order = '' THEN NULL
+                    ELSE CAST(days_since_prior_order AS DOUBLE)
                 END) AS std_days_between
             FROM customer_orders
             GROUP BY user_id
@@ -655,8 +657,26 @@ class AthenaAnalyzer:
         
         df = self.execute_query(query, "customer_journey", use_cache=use_cache, max_rows=max_rows)
         
+        # Debug: Print data info
+        logger.info(f"📊 Customer Journey Raw Data: {len(df)} rows")
+        if len(df) > 0:
+            logger.info(f"📈 Columns found: {list(df.columns)}")
+            logger.info(f"📊 Sample data:")
+            logger.info(df.head())
+        
         # Create visualization
         if len(df) > 0:
+            # Check if required columns exist
+            required_columns = ['first_time_customers', 'repeat_customers', 'total_items', 
+                              'reordered_items', 'small_orders', 'medium_orders', 'large_orders']
+            missing_columns = [col for col in required_columns if col not in df.columns]
+            
+            if missing_columns:
+                logger.warning(f"⚠️ Missing columns in customer journey data: {missing_columns}")
+                logger.warning(f"📊 Available columns: {list(df.columns)}")
+                # Return a simple message instead of crashing
+                return self._create_simple_customer_journey_figure(df), df
+            
             # This query returns global metrics, so we'll create a different visualization
             fig = make_subplots(
                 rows=2, cols=2,
@@ -729,8 +749,26 @@ class AthenaAnalyzer:
         query = f"SELECT * FROM {self.database}.{view_name} LIMIT 10000"
         df = self.execute_query(query, "customer_journey_fast", use_cache=True, max_rows=10000)
         
+        # Debug: Print data info
+        logger.info(f"📊 Customer Journey Fast Data: {len(df)} rows")
+        if len(df) > 0:
+            logger.info(f"📈 Columns found: {list(df.columns)}")
+            logger.info(f"📊 Sample data:")
+            logger.info(df.head())
+        
         # Create visualization
         if len(df) > 0:
+            # Check if required columns exist
+            required_columns = ['first_time_customers', 'repeat_customers', 'total_items', 
+                              'reordered_items', 'small_orders', 'medium_orders', 'large_orders']
+            missing_columns = [col for col in required_columns if col not in df.columns]
+            
+            if missing_columns:
+                logger.warning(f"⚠️ Missing columns in customer journey data: {missing_columns}")
+                logger.warning(f"📊 Available columns: {list(df.columns)}")
+                # Return a simple message instead of crashing
+                return self._create_simple_customer_journey_figure(df), df
+            
             fig = make_subplots(
                 rows=2, cols=2,
                 subplot_titles=('Customer Distribution', 'Order Size Distribution', 
@@ -788,6 +826,43 @@ class AthenaAnalyzer:
             )
         
         return fig, df
+    
+    def _create_simple_customer_journey_figure(self, df: pd.DataFrame) -> go.Figure:
+        """Create a simple customer journey figure when some columns are missing"""
+        fig = go.Figure()
+        
+        # Create a simple bar chart with available data
+        available_metrics = []
+        available_values = []
+        
+        for col in df.columns:
+            if col in ['total_orders', 'total_customers', 'total_items']:
+                available_metrics.append(col.replace('_', ' ').title())
+                available_values.append(df.iloc[0][col])
+        
+        if available_metrics:
+            fig.add_trace(go.Bar(
+                x=available_metrics,
+                y=available_values,
+                name='Available Metrics'
+            ))
+            fig.update_layout(
+                title='Customer Journey Analysis - Available Data Only',
+                height=400,
+                xaxis_title='Metrics',
+                yaxis_title='Count'
+            )
+        else:
+            fig.add_annotation(
+                text="Limited data available for visualization.",
+                xref="paper", yref="paper", x=0.5, y=0.5, showarrow=False
+            )
+            fig.update_layout(
+                title='Customer Journey Analysis - Limited Data',
+                height=400
+            )
+        
+        return fig
     
     def create_lifetime_value_analysis(self, use_cache: bool = True) -> Tuple[go.Figure, pd.DataFrame]:
         """Create customer lifetime value analysis using Athena with raw data"""
@@ -1457,9 +1532,9 @@ class AthenaAnalyzer:
                 f"""
                 SELECT 
                     'after_clean_orders' as table_name,
-                    'days_since_prior' as column_name,
-                    typeof(days_since_prior) as data_type,
-                    days_since_prior as sample_value
+                    'days_since_prior_order' as column_name,
+                    typeof(days_since_prior_order) as data_type,
+                    days_since_prior_order as sample_value
                 FROM {self.database}.after_clean_orders 
                 LIMIT 1
                 """
