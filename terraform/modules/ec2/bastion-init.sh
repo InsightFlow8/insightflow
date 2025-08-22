@@ -62,6 +62,7 @@
 #
 # LOGGING:
 #   All script output is logged to /var/log/bastion-init.log
+#   sudo cat /var/log/bastion-init.log
 #
 # ERROR HANDLING:
 #   Script exits on first error with detailed logging
@@ -111,7 +112,7 @@ if ! command -v docker-compose &> /dev/null; then
 fi
 check_status "Docker Compose installation"
 
-# Install Git and Git LFS
+# Install Git
 log_message "📦 Installing Git..."
 sudo dnf install git -y 
 check_status "Git installation"
@@ -119,7 +120,7 @@ check_status "Git installation"
 # Clone the project from the specific branch
 # NOTE: This creates the insightflow folder in the current working directory (/root/)
 log_message "📥 Cloning project from GitHub..."
-git clone -b main https://github.com/InsightFlow8/insightflow.git
+git clone -b feature/segment_recommend https://github.com/InsightFlow8/insightflow.git
 check_status "Project cloning"
 
 cd insightflow/dashboard
@@ -132,7 +133,9 @@ check_status "Environment file download"
 # Download the latest ALS model (with error handling)
 log_message "🤖 Downloading ALS model from S3..."
 rm -rf backend/als_model && mkdir -p backend/als_model
-aws s3 cp s3://insightflow-dev-clean-bucket/ml/recsys/models/als-20250815-180121/als_model/ backend/als_model/
+aws s3 cp s3://insightflow-dev-clean-bucket/ml/recsys/models/als-20250815-180121/als_model/ backend/als_model/ --recursive
+aws s3 cp s3://insightflow-dev-curated-bucket/recsys/user_seg/run-20250821-082110/user_seg.parquet/ backend/user_seg.parquet/  --recursive
+aws s3 cp s3://insightflow-dev-curated-bucket/recsys/segment_popularity/run-20250821-082110/segment_popularity.parquet/ backend/segment_popularity.parquet/ --recursive
 
 # Build and run the dashboard
 log_message "🐳 Building and starting dashboard containers..."

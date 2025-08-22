@@ -151,15 +151,32 @@ docker-compose ps
 # View logs
 docker-compose logs -f
 
+# Check specific service logs
+docker-compose logs -f backend
+docker-compose logs -f frontend
+
 # Check system resources
 htop
 df -h
+
+# Check bastion initialization logs
+sudo cat /var/log/bastion-init.log
+
+# Follow bastion logs in real-time
+sudo tail -f /var/log/bastion-init.log
+
+# Check Docker container logs
+docker-compose logs -f
+
+# Check specific container logs
+docker-compose logs -f backend-1
+docker-compose logs -f frontend-1
 ```
 
 ## EC2 Configuration Details
 
 ### Instance Specifications
-- **Instance Type**: t2.medium (2 vCPU, 4GB RAM)
+- **Instance Type**: t2.medium (2 vCPU, 4GB RAM) - **Recommended: t3.large for better performance**
 - **Storage**: 25GB GP3 EBS volume
 - **OS**: Amazon Linux 2
 - **Architecture**: x86_64
@@ -202,12 +219,6 @@ ATHENA_OUTPUT_BUCKET=your-athena-output-bucket
 
 ### AWS S3 Data Storage
 The system uses AWS S3 for data storage and AWS Athena for querying. Data is stored in S3 buckets and accessed through Athena queries.
-
-### Data Structure
-The system expects data to be organized in S3 with the following structure:
-```
-s3://y
-```
 
 ### Expected File Structure
 After downloading, `imba_data/` should contain:
@@ -312,6 +323,47 @@ OPENAI_API_KEY=your_openai_api_key
 2. **Bucket not found**: Verify S3_VECTORS_BUCKET exists in AWS
 3. **Network connectivity**: Ensure backend can reach AWS services
 
+### EC2 Deployment Issues
+1. **Check bastion script logs:**
+   ```bash
+   # View complete bastion initialization log
+   sudo cat /var/log/bastion-init.log
+   
+   # Follow logs in real-time during deployment
+   sudo tail -f /var/log/bastion-init.log
+   
+   # Check for specific errors
+   sudo grep -i "error\|failed\|❌" /var/log/bastion-init.log
+   ```
+
+2. **Check Docker container status:**
+   ```bash
+   # Navigate to dashboard directory
+   cd /root/insightflow/dashboard
+   
+   # Check container status
+   docker-compose ps
+   
+   # View all container logs
+   docker-compose logs -f
+   
+   # Check specific service logs
+   docker-compose logs -f backend
+   docker-compose logs -f frontend
+   ```
+
+3. **Verify system resources:**
+   ```bash
+   # Check available memory
+   free -h
+   
+   # Check disk space
+   df -h
+   
+   # Check running processes
+   ps aux | grep docker
+   ```
+
 ## Documentation
 
 For detailed information about each component:
@@ -331,13 +383,13 @@ For detailed information about each component:
 3. Query Processing
 	-	Charged based on number of queries and data scanned.
 	-	For example (from AWS case study):
-	-	With 400 million vectors, 40 indexes, 10 million queries:
+	-	With 400 million vectors, 40 indexes, 10 million queries:
 	-	~$996.62 in query cost,
 	-	$78.46 ingest,
 	-	$141.22 storage per month
 
 #### Example Use Case Cost Estimate
-Suppose you store 60 GB of vector data (e.g. 10 million vectors of ~1,536‑dim) and run 1 million similarity queries per month:
+Suppose you store 60 GB of vector data (e.g. 10 million vectors of ~1,536‑dim) and run 1 million similarity queries per month:
 
 | **Component** | **Usage**         | **Unit Price**    | **Total Cost**    |
 | ------------- | ----------------- | ----------------- | ----------------- |

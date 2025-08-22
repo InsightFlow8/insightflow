@@ -5,7 +5,7 @@ import os
 # Add the backend directory to the path
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'backend'))
 
-def render_customer_journey_tab(athena_analyzer):
+def render_customer_journey_tab(athena_analyzer, force_refresh: bool = False):
     """Render the customer journey and behavior analysis tab using Athena"""
     
     st.header("Customer Journey & Behavior Analysis")
@@ -18,13 +18,13 @@ def render_customer_journey_tab(athena_analyzer):
         use_fast_analysis = st.checkbox("Use fast analysis (materialized view)", value=True, key="customer_journey_fast")
     
     with col2:
-        max_rows = st.number_input("Maximum rows to return", 1000, 50000, 10000, key="customer_journey_max_rows")
+        max_rows = st.number_input("Maximum rows to return", 1000, 50000, 5000, key="customer_journey_max_rows")
     
     # Run the analysis
     with st.spinner("Running customer journey analysis..."):
         try:
             if use_fast_analysis:
-                fig, df = athena_analyzer.create_customer_journey_analysis_fast()
+                fig, df = athena_analyzer.create_customer_journey_analysis_fast(force_refresh=force_refresh, max_rows=max_rows)
             else:
                 fig, df = athena_analyzer.create_customer_journey_analysis(use_cache=True, max_rows=max_rows)
             
@@ -75,6 +75,8 @@ def render_customer_journey_tab(athena_analyzer):
                             st.info(f"**Reordered Items:** {df['reordered_items'].iloc[0]:,} ({reorder_rate:.1f}%)")
                         except (KeyError, IndexError, ZeroDivisionError):
                             st.info("**Reordered Items:** N/A")
+                    else:
+                        st.info("**Reordered Items:** N/A")
                     
                     if 'small_orders' in df.columns and 'medium_orders' in df.columns and 'large_orders' in df.columns:
                         try:
@@ -83,6 +85,8 @@ def render_customer_journey_tab(athena_analyzer):
                             st.info(f"**Average Order Size:** {avg_order_size:.1f} items")
                         except (KeyError, IndexError, ZeroDivisionError):
                             st.info("**Average Order Size:** N/A")
+                    else:
+                        st.info("**Average Order Size:** N/A")
                 
                 with col2:
                     if 'first_time_customers' in df.columns and 'repeat_customers' in df.columns:
@@ -92,6 +96,8 @@ def render_customer_journey_tab(athena_analyzer):
                             st.info(f"**Loyal Customers (2+ orders):** {loyal_customers:,} ({loyal_customers/total_customers*100:.1f}%)")
                         except (KeyError, IndexError, ZeroDivisionError):
                             st.info("**Loyal Customers (2+ orders):** N/A")
+                    else:
+                        st.info("**Loyal Customers (2+ orders):** N/A")
                     
                     if 'total_orders' in df.columns and 'total_customers' in df.columns:
                         try:
@@ -99,6 +105,15 @@ def render_customer_journey_tab(athena_analyzer):
                             st.info(f"**Avg Orders per Customer:** {avg_orders_per_customer:.1f}")
                         except (KeyError, IndexError, ZeroDivisionError):
                             st.info("**Avg Orders per Customer:** N/A")
+                    else:
+                        st.info("**Avg Orders per Customer:** N/A")
+                
+                # Show data columns info for debugging
+                with st.expander("🔍 Data Structure"):
+                    st.write(f"**DataFrame Shape:** {df.shape}")
+                    st.write(f"**Available Columns:** {list(df.columns)}")
+                    st.write("**Sample Data:**")
+                    st.dataframe(df.head())
             else:
                 st.warning("No customer journey data found. Try adjusting the parameters.")
                 

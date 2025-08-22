@@ -74,7 +74,7 @@ jobs:
 
       # EC2 Configuration
       TF_VAR_ami_id: ami-00839deb72faa8a04
-      TF_VAR_instance_type: t2.micro
+      TF_VAR_instance_type: t2.medium
       TF_VAR_key_name: de_insightflow_ec2
 
       # S3 Configuration

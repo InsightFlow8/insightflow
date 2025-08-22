@@ -275,15 +275,21 @@ class AthenaAnalyzer:
     def create_materialized_view(self, query: str, view_name: str, refresh: bool = False) -> bool:
         """Create a materialized view (CTAS - Create Table As Select) for faster querying"""
         try:
-            # Check if view already exists
+            # Check if view exists and if we need to refresh
             if not refresh:
                 try:
+                    # Check if view exists and is valid
                     check_query = f"SELECT COUNT(*) FROM {self.database}.{view_name} LIMIT 1"
                     self.execute_query(check_query, f"check_{view_name}")
-                    logger.info(f"📋 Materialized view {view_name} already exists")
+                    logger.info(f"📋 Materialized view {view_name} already exists and is valid")
                     return True
                 except:
                     logger.info(f"📋 Materialized view {view_name} does not exist, creating...")
+            
+            # Only drop and recreate when refresh=True or view doesn't exist
+            if refresh:
+                self.drop_materialized_view(view_name)
+                logger.info(f"🔄 Refreshing materialized view: {view_name}")
             
             # Create materialized view using CTAS
             ctas_query = f"""
@@ -298,27 +304,30 @@ class AthenaAnalyzer:
             logger.info(f"🔨 Creating materialized view: {view_name}")
             self.execute_query(ctas_query, f"create_{view_name}", use_cache=False)
             
-            logger.info(f"✅ Materialized view {view_name} created successfully")
+            logger.info(f"✅ Materialized view {view_name} created successfully with latest query")
             return True
             
         except Exception as e:
             logger.error(f"❌ Failed to create materialized view {view_name}: {e}")
             return False
     
-    def query_materialized_view(self, view_name: str, additional_filters: str = "") -> pd.DataFrame:
+    def query_materialized_view(self, view_name: str, additional_filters: str = "", max_rows: int = 5000) -> pd.DataFrame:
         """Query a materialized view for faster results"""
         try:
             query = f"SELECT * FROM {self.database}.{view_name}"
             if additional_filters:
                 query += f" WHERE {additional_filters}"
             
-            return self.execute_query(query, f"query_{view_name}", use_cache=True)
+            # Add LIMIT clause to respect max_rows parameter
+            query += f" LIMIT {max_rows}"
+            
+            return self.execute_query(query, f"query_{view_name}", use_cache=True, max_rows=max_rows)
             
         except Exception as e:
             logger.error(f"❌ Failed to query materialized view {view_name}: {e}")
             raise
     
-    def refresh_materialized_view(self, view_name: str) -> bool:
+    def refresh_materialized_view(self, view_name: str, max_rows: int = 5000) -> bool:
         """Refresh a materialized view by recreating it"""
         try:
             # Get the original query from metadata (you might want to store this)
@@ -326,13 +335,13 @@ class AthenaAnalyzer:
             
             # For now, we'll recreate the view based on common patterns
             if view_name == "product_affinity_view":
-                query = self._get_product_affinity_query()
+                query = self._get_product_affinity_query(max_rows=max_rows)
             elif view_name == "customer_journey_view":
-                query = self._get_customer_journey_query()
-            elif view_name == "lifetime_value_view":
-                query = self._get_lifetime_value_query()
+                query = self._get_customer_journey_query(max_rows=max_rows)
             elif view_name == "churn_analysis_view":
-                query = self._get_churn_analysis_query()
+                query = self._get_churn_analysis_query(max_rows=max_rows)
+            elif view_name == "lifetime_value_view":
+                query = self._get_lifetime_value_query(max_rows=max_rows)
             else:
                 raise ValueError(f"Unknown materialized view: {view_name}")
             
@@ -342,7 +351,7 @@ class AthenaAnalyzer:
             logger.error(f"❌ Failed to refresh materialized view {view_name}: {e}")
             return False
     
-    def _get_product_affinity_query(self, top_products: int = 20, departments: list = None) -> str:
+    def _get_product_affinity_query(self, top_products: int = 20, departments: list = None, max_rows: int = 5000) -> str:
         """Get the product affinity query that matches in-memory approach with optional department filtering"""
         
         # Build department filter
@@ -370,7 +379,7 @@ class AthenaAnalyzer:
             FROM (
                 SELECT op.product_id, COUNT(*) as frequency
                 FROM combined_order_products op
-                JOIN {self.database}.after_clean_products p ON CAST(op.product_id AS INTEGER) = CAST(p.product_id AS INTEGER)
+                JOIN {self.database}.after_clean_products p ON CAST(op.product_id AS BIGINT) = CAST(p.product_id AS BIGINT)
                 WHERE 1=1 {department_filter}
                 GROUP BY op.product_id
                 ORDER BY frequency DESC
@@ -385,14 +394,14 @@ class AthenaAnalyzer:
         product_pairs AS (
             -- Match in-memory approach: count unique pairs per order
             SELECT 
-                CAST(op1.product_id AS INTEGER) as product1_id,
-                CAST(op2.product_id AS INTEGER) as product2_id,
+                CAST(op1.product_id AS BIGINT) as product1_id,
+                CAST(op2.product_id AS BIGINT) as product2_id,
                 COUNT(*) as pair_count  -- Count individual pairs, not orders
             FROM filtered_order_products op1
             JOIN filtered_order_products op2 
                 ON op1.order_id = op2.order_id 
-                AND CAST(op1.product_id AS INTEGER) < CAST(op2.product_id AS INTEGER)
-            GROUP BY CAST(op1.product_id AS INTEGER), CAST(op2.product_id AS INTEGER)
+                AND CAST(op1.product_id AS BIGINT) < CAST(op2.product_id AS BIGINT)
+            GROUP BY CAST(op1.product_id AS BIGINT), CAST(op2.product_id AS BIGINT)
         )
         SELECT 
             pp.product1_id,
@@ -405,59 +414,63 @@ class AthenaAnalyzer:
             d2.department as product2_department,
             pp.pair_count
         FROM product_pairs pp
-        JOIN {self.database}.after_clean_products p1 ON pp.product1_id = CAST(p1.product_id AS INTEGER)
-        JOIN {self.database}.after_clean_roducts p2 ON pp.product2_id = CAST(p2.product_id AS INTEGER)
+        JOIN {self.database}.after_clean_products p1 ON pp.product1_id = CAST(p1.product_id AS BIGINT)
+        JOIN {self.database}.after_clean_products p2 ON pp.product2_id = CAST(p2.product_id AS BIGINT)
         JOIN {self.database}.after_clean_departments d1 ON p1.department_id = d1.department_id
         JOIN {self.database}.after_clean_departments d2 ON p2.department_id = d2.department_id
         ORDER BY pp.pair_count DESC
+        LIMIT {max_rows}
         """
     
-    def _get_customer_journey_query(self) -> str:
+    def _get_customer_journey_query(self, max_rows: int = 5000) -> str:
         """Get the customer journey query for materialized view"""
         return f"""
-    WITH combined_order_products AS (
-        SELECT * FROM {self.database}.after_clean_order_products_prior
-        UNION ALL
-        SELECT * FROM {self.database}.after_clean_order_products_train
-    ),
-    order_metrics AS (
-        SELECT 
-            o.order_id,
-            o.user_id,
-            COUNT(*) as items_in_order,
-            SUM(CASE WHEN op.reordered = '1' THEN 1 ELSE 0 END) as reordered_items,
-            MAX(CAST(op.add_to_cart_order AS INTEGER)) as order_size
-        FROM {self.database}.after_clean_orders o
-        JOIN combined_order_products op ON o.order_id = op.order_id
-        GROUP BY o.order_id, o.user_id
-    ),
-    customer_metrics AS (
-        SELECT 
-            user_id,
-            COUNT(DISTINCT order_id) as total_orders,
-            SUM(items_in_order) as total_items,
-            SUM(reordered_items) as total_reordered,
-            AVG(order_size) as avg_order_size
-        FROM order_metrics
-        GROUP BY user_id
-        LIMIT 10000
-    )
-    SELECT
-        COUNT(DISTINCT om.order_id) AS total_orders,
-        COUNT(DISTINCT om.user_id) AS total_customers,
-        SUM(CASE WHEN cm.total_orders = 1 THEN 1 ELSE 0 END) AS first_time_customers,
-        SUM(CASE WHEN cm.total_orders > 1 THEN 1 ELSE 0 END) AS repeat_customers,
-        SUM(om.items_in_order) AS total_items,
-        SUM(om.reordered_items) AS reordered_items,
-        SUM(om.items_in_order) - SUM(om.reordered_items) AS new_items,
-        SUM(CASE WHEN om.order_size <= 5 THEN 1 ELSE 0 END) AS small_orders,
-        SUM(CASE WHEN om.order_size > 5 AND om.order_size <= 15 THEN 1 ELSE 0 END) AS medium_orders,
-        SUM(CASE WHEN om.order_size > 15 THEN 1 ELSE 0 END) AS large_orders
-    FROM order_metrics om
-    JOIN customer_metrics cm ON om.user_id = cm.user_id
-    """
+        WITH combined_order_products AS (
+            SELECT * FROM {self.database}.after_clean_order_products_prior
+            UNION ALL
+            SELECT * FROM {self.database}.after_clean_order_products_train
+        ),
+        order_metrics AS (
+            SELECT 
+                o.order_id,
+                o.user_id,
+                COUNT(*) as items_in_order,
+                SUM(CASE WHEN CAST(op.reordered AS INTEGER) = 1 THEN 1 ELSE 0 END) as reordered_items,
+                MAX(CAST(op.add_to_cart_order AS INTEGER)) as order_size
+            FROM {self.database}.after_clean_orders o
+            JOIN combined_order_products op ON o.order_id = op.order_id
+            GROUP BY o.order_id, o.user_id
+        ),
+        customer_metrics AS (
+            SELECT 
+                user_id,
+                COUNT(DISTINCT order_id) as total_orders,
+                SUM(items_in_order) as total_items,
+                SUM(reordered_items) as total_reordered,
+                AVG(order_size) as avg_order_size
+            FROM order_metrics
+            GROUP BY user_id
+        ),
+        global_metrics AS (
+            SELECT
+                COUNT(DISTINCT om.order_id) AS total_orders,
+                COUNT(DISTINCT om.user_id) AS total_customers,
+                SUM(CASE WHEN cm.total_orders = 1 THEN 1 ELSE 0 END) AS first_time_customers,
+                SUM(CASE WHEN cm.total_orders > 1 THEN 1 ELSE 0 END) AS repeat_customers,
+                SUM(om.items_in_order) AS total_items,
+                SUM(om.reordered_items) AS reordered_items,
+                SUM(om.items_in_order) - SUM(om.reordered_items) AS new_items,
+                SUM(CASE WHEN om.order_size <= 5 THEN 1 ELSE 0 END) AS small_orders,
+                SUM(CASE WHEN om.order_size > 5 AND om.order_size <= 15 THEN 1 ELSE 0 END) AS medium_orders,
+                SUM(CASE WHEN om.order_size > 15 THEN 1 ELSE 0 END) AS large_orders
+            FROM order_metrics om
+            JOIN customer_metrics cm ON om.user_id = cm.user_id
+        )
+        SELECT * FROM global_metrics
+        LIMIT {max_rows}
+        """
 
-    def _get_lifetime_value_query(self) -> str:
+    def _get_lifetime_value_query(self, max_rows: int = 5000) -> str:
         """Get the lifetime value query for materialized view"""
         return f"""
         WITH combined_order_products AS (
@@ -470,7 +483,7 @@ class AthenaAnalyzer:
                 o.user_id,
                 COUNT(DISTINCT op.order_id) as total_orders,
                 COUNT(*) as total_items,
-                SUM(CASE WHEN op.reordered = '1' THEN 1 ELSE 0 END) as total_reorders,
+                SUM(CASE WHEN CAST(op.reordered AS INTEGER) = 1 THEN 1 ELSE 0 END) as total_reorders,
                 AVG(CAST(op.add_to_cart_order AS DOUBLE)) as avg_order_size,
                 MAX(CAST(o.order_number AS INTEGER)) as max_order_number
             FROM combined_order_products op
@@ -491,40 +504,29 @@ class AthenaAnalyzer:
             END as customer_segment
         FROM customer_metrics
         ORDER BY total_items DESC
-        LIMIT 10000
+        LIMIT {max_rows}
         """
 
-    def _get_churn_analysis_query(self) -> str:
+    def _get_churn_analysis_query(self, max_rows: int = 5000) -> str:
         """Get the churn analysis query for materialized view"""
         return f"""
-        -- Get all customers with their order counts and days between orders
-        WITH customer_orders AS (
+        WITH user_orders AS (
             SELECT 
                 user_id,
-                order_number,
-                days_since_prior
+                order_id,
+                days_since_prior_order
             FROM {self.database}.after_clean_orders
-            WHERE CAST(order_number AS INTEGER) > 1  -- Only subsequent orders
+            WHERE CAST(order_number AS INTEGER) != 1
         ),
-        customer_metrics AS (
+        user_metrics AS (
             SELECT 
                 user_id,
-                MAX(CAST(order_number AS INTEGER)) AS total_orders,
-                AVG(CASE 
-                    WHEN days_since_prior IS NULL OR days_since_prior = '' THEN NULL
-                    ELSE CAST(days_since_prior AS DOUBLE)
-                END) AS avg_days_between,
-                MAX(CASE 
-                    WHEN days_since_prior IS NULL OR days_since_prior = '' THEN NULL
-                    ELSE CAST(days_since_prior AS DOUBLE)
-                END) AS max_days_between,
-                STDDEV(CASE 
-                    WHEN days_since_prior IS NULL OR days_since_prior = '' THEN NULL
-                    ELSE CAST(days_since_prior AS DOUBLE)
-                END) AS std_days_between
-            FROM customer_orders
+                COUNT(DISTINCT order_id) as total_orders,
+                AVG(CAST(days_since_prior_order AS DOUBLE)) AS avg_days_between,
+                MAX(CAST(days_since_prior_order AS DOUBLE)) AS max_days_between,
+                STDDEV(CAST(days_since_prior_order AS DOUBLE)) AS std_days_between
+            FROM user_orders
             GROUP BY user_id
-            HAVING MAX(CAST(order_number AS INTEGER)) > 1  -- Only customers with multiple orders
         )
         SELECT 
             user_id,
@@ -532,9 +534,8 @@ class AthenaAnalyzer:
             COALESCE(avg_days_between, 0) AS avg_days_between,
             COALESCE(max_days_between, 0) AS max_days_between,
             COALESCE(std_days_between, 0) AS std_days_between
-        FROM customer_metrics
-        ORDER BY RANDOM()  -- Random sample
-        LIMIT 10000
+        FROM user_metrics
+        LIMIT {max_rows}
         """
     
     def _convert_results_to_dataframe(self, results: Dict[str, Any]) -> pd.DataFrame:
@@ -572,10 +573,10 @@ class AthenaAnalyzer:
         
         return df
     
-    def create_product_affinity_analysis(self, top_products: int = 20, use_cache: bool = True, max_rows: int = 10000, departments: list = None) -> Tuple[go.Figure, pd.DataFrame]:
+    def create_product_affinity_analysis(self, top_products: int = 20, use_cache: bool = True, max_rows: int = 5000, departments: list = None) -> Tuple[go.Figure, pd.DataFrame]:
         """Create product affinity analysis using Athena with raw data"""
         # Use the updated query method
-        query = self._get_product_affinity_query(top_products, departments)
+        query = self._get_product_affinity_query(top_products, departments, max_rows)
         
         df = self.execute_query(query, "product_affinity", use_cache=use_cache, max_rows=max_rows)
         
@@ -612,17 +613,23 @@ class AthenaAnalyzer:
         
         return fig, df
     
-    def create_product_affinity_analysis_fast(self, top_products: int = 20, max_rows: int = 10000, departments: list = None) -> Tuple[go.Figure, pd.DataFrame]:
+    def create_product_affinity_analysis_fast(self, top_products: int = 20, max_rows: int = 5000, departments: list = None, force_refresh: bool = False) -> Tuple[go.Figure, pd.DataFrame]:
         """Create product affinity analysis using materialized view for faster results"""
         view_name = "product_affinity_view"
+        
+        # Only force refresh when explicitly requested
+        if force_refresh:
+            logger.info(f"🔄 Force refreshing {view_name} as requested")
+        else:
+            logger.info(f"📋 Using existing {view_name} if available")
         
         # If departments are specified, we need to refresh the materialized view or use regular query
         if departments and "All Departments" not in departments:
             logger.info("⚠️ Department filtering requested, using regular query instead of materialized view")
             return self.create_product_affinity_analysis(top_products, use_cache=True, max_rows=max_rows, departments=departments)
         
-        # Try to create materialized view if it doesn't exist
-        if not self.create_materialized_view(self._get_product_affinity_query(top_products, departments), view_name):
+        # Try to create materialized view with latest query
+        if not self.create_materialized_view(self._get_product_affinity_query(top_products, departments, max_rows), view_name, refresh=force_refresh):
             logger.warning("⚠️ Failed to create materialized view, falling back to regular query")
             return self.create_product_affinity_analysis(top_products, use_cache=True, max_rows=max_rows, departments=departments)
         
@@ -648,15 +655,33 @@ class AthenaAnalyzer:
         
         return fig, df
     
-    def create_customer_journey_analysis(self, use_cache: bool = True, max_rows: int = 10000) -> Tuple[go.Figure, pd.DataFrame]:
+    def create_customer_journey_analysis(self, use_cache: bool = True, max_rows: int = 5000) -> Tuple[go.Figure, pd.DataFrame]:
         """Create customer journey analysis using Athena with raw data"""
         # Use the updated query method
-        query = self._get_customer_journey_query()
+        query = self._get_customer_journey_query(max_rows)
         
         df = self.execute_query(query, "customer_journey", use_cache=use_cache, max_rows=max_rows)
         
+        # Debug: Print data info
+        logger.info(f"📊 Customer Journey Raw Data: {len(df)} rows")
+        if len(df) > 0:
+            logger.info(f"📈 Columns found: {list(df.columns)}")
+            logger.info(f"📊 Sample data:")
+            logger.info(df.head())
+        
         # Create visualization
         if len(df) > 0:
+            # Check if required columns exist
+            required_columns = ['first_time_customers', 'repeat_customers', 'total_items', 
+                              'reordered_items', 'small_orders', 'medium_orders', 'large_orders']
+            missing_columns = [col for col in required_columns if col not in df.columns]
+            
+            if missing_columns:
+                logger.warning(f"⚠️ Missing columns in customer journey data: {missing_columns}")
+                logger.warning(f"📊 Available columns: {list(df.columns)}")
+                # Return a simple message instead of crashing
+                return self._create_simple_customer_journey_figure(df), df
+            
             # This query returns global metrics, so we'll create a different visualization
             fig = make_subplots(
                 rows=2, cols=2,
@@ -716,21 +741,45 @@ class AthenaAnalyzer:
         
         return fig, df
     
-    def create_customer_journey_analysis_fast(self) -> Tuple[go.Figure, pd.DataFrame]:
+    def create_customer_journey_analysis_fast(self, force_refresh: bool = False, max_rows: int = 5000) -> Tuple[go.Figure, pd.DataFrame]:
         """Create customer journey analysis using materialized view for faster results"""
         view_name = "customer_journey_view"
         
-        # Try to create materialized view if it doesn't exist
-        if not self.create_materialized_view(self._get_customer_journey_query(), view_name):
+        # Only force refresh when explicitly requested
+        if force_refresh:
+            logger.info(f"🔄 Force refreshing {view_name} as requested")
+        else:
+            logger.info(f"📋 Using existing {view_name} if available")
+        
+        # Try to create materialized view with latest query
+        if not self.create_materialized_view(self._get_customer_journey_query(max_rows), view_name, refresh=force_refresh):
             logger.warning("⚠️ Failed to create materialized view, falling back to regular query")
-            return self.create_customer_journey_analysis(use_cache=True)
+            return self.create_customer_journey_analysis(use_cache=True, max_rows=max_rows)
         
         # Query the materialized view
-        query = f"SELECT * FROM {self.database}.{view_name} LIMIT 10000"
-        df = self.execute_query(query, "customer_journey_fast", use_cache=True, max_rows=10000)
+        query = f"SELECT * FROM {self.database}.{view_name} LIMIT {max_rows}"
+        df = self.execute_query(query, "customer_journey_fast", use_cache=True, max_rows=max_rows)
+        
+        # Debug: Print data info
+        logger.info(f"📊 Customer Journey Fast Data: {len(df)} rows")
+        if len(df) > 0:
+            logger.info(f"📈 Columns found: {list(df.columns)}")
+            logger.info(f"📊 Sample data:")
+            logger.info(df.head())
         
         # Create visualization
         if len(df) > 0:
+            # Check if required columns exist
+            required_columns = ['first_time_customers', 'repeat_customers', 'total_items', 
+                              'reordered_items', 'small_orders', 'medium_orders', 'large_orders']
+            missing_columns = [col for col in required_columns if col not in df.columns]
+            
+            if missing_columns:
+                logger.warning(f"⚠️ Missing columns in customer journey data: {missing_columns}")
+                logger.warning(f"📊 Available columns: {list(df.columns)}")
+                # Return a simple message instead of crashing
+                return self._create_simple_customer_journey_figure(df), df
+            
             fig = make_subplots(
                 rows=2, cols=2,
                 subplot_titles=('Customer Distribution', 'Order Size Distribution', 
@@ -789,12 +838,61 @@ class AthenaAnalyzer:
         
         return fig, df
     
-    def create_lifetime_value_analysis(self, use_cache: bool = True) -> Tuple[go.Figure, pd.DataFrame]:
+    def _create_simple_customer_journey_figure(self, df: pd.DataFrame) -> go.Figure:
+        """Create a simple customer journey figure when some columns are missing"""
+        fig = go.Figure()
+        
+        # Create a simple bar chart with available data
+        available_metrics = []
+        available_values = []
+        
+        for col in df.columns:
+            if col in ['total_orders', 'total_customers', 'total_items']:
+                available_metrics.append(col.replace('_', ' ').title())
+                available_values.append(df.iloc[0][col])
+        
+        if available_metrics:
+            fig.add_trace(go.Bar(
+                x=available_metrics,
+                y=available_values,
+                name='Available Metrics'
+            ))
+            fig.update_layout(
+                title='Customer Journey Analysis - Available Data Only',
+                height=400,
+                xaxis_title='Metrics',
+                yaxis_title='Count'
+            )
+        else:
+            fig.add_annotation(
+                text="Limited data available for visualization.",
+                xref="paper", yref="paper", x=0.5, y=0.5, showarrow=False
+            )
+            fig.update_layout(
+                title='Customer Journey Analysis - Limited Data',
+                height=400
+            )
+        
+        return fig
+    
+    def create_lifetime_value_analysis(self, use_cache: bool = True, max_rows: int = 5000) -> Tuple[go.Figure, pd.DataFrame]:
         """Create customer lifetime value analysis using Athena with raw data"""
         # Use the updated query method
-        query = self._get_lifetime_value_query()
+        query = self._get_lifetime_value_query(max_rows)
         
-        df = self.execute_query(query, "lifetime_value", use_cache=use_cache, max_rows=10000)
+        df = self.execute_query(query, "lifetime_value", use_cache=use_cache, max_rows=max_rows)
+        
+        # Debug: Log the data info to help identify inconsistencies
+        logger.info(f"📊 Lifetime Value Normal Data: {len(df)} rows from raw query")
+        if len(df) > 0:
+            logger.info(f"📈 Columns found: {list(df.columns)}")
+            logger.info(f"📊 Customer segments found:")
+            if 'customer_segment' in df.columns:
+                segment_counts = df['customer_segment'].value_counts()
+                for segment, count in segment_counts.items():
+                    logger.info(f"  - {segment}: {count} customers")
+            logger.info(f"📊 Total customers: {len(df)}")
+            logger.info(f"📊 Total orders range: {df['total_orders'].min()} - {df['total_orders'].max()}")
         
         # Create visualization
         if len(df) > 0:
@@ -883,18 +981,36 @@ class AthenaAnalyzer:
         
         return fig, df
     
-    def create_lifetime_value_analysis_fast(self) -> Tuple[go.Figure, pd.DataFrame]:
+    def create_lifetime_value_analysis_fast(self, force_refresh: bool = False, max_rows: int = 5000) -> Tuple[go.Figure, pd.DataFrame]:
         """Create customer lifetime value analysis using materialized view for faster results"""
         view_name = "lifetime_value_view"
         
-        # Try to create materialized view if it doesn't exist
-        if not self.create_materialized_view(self._get_lifetime_value_query(), view_name):
+        # Only force refresh when explicitly requested
+        if force_refresh:
+            logger.info(f"🔄 Force refreshing {view_name} as requested")
+        else:
+            logger.info(f"📋 Using existing {view_name} if available")
+        
+        # Try to create materialized view with latest query
+        if not self.create_materialized_view(self._get_lifetime_value_query(max_rows=max_rows), view_name, refresh=force_refresh):
             logger.warning("⚠️ Failed to create materialized view, falling back to regular query")
-            return self.create_lifetime_value_analysis(use_cache=True)
+            return self.create_lifetime_value_analysis(use_cache=True, max_rows=max_rows)
         
         # Query the materialized view
-        query = f"SELECT * FROM {self.database}.{view_name} LIMIT 10000"
-        df = self.execute_query(query, "lifetime_value_fast", use_cache=True, max_rows=10000)
+        query = f"SELECT * FROM {self.database}.{view_name} LIMIT {max_rows}"
+        df = self.execute_query(query, "lifetime_value_fast", use_cache=True, max_rows=max_rows)
+        
+        # Debug: Log the data info to help identify inconsistencies
+        logger.info(f"📊 Lifetime Value Fast Data: {len(df)} rows from materialized view")
+        if len(df) > 0:
+            logger.info(f"📈 Columns found: {list(df.columns)}")
+            logger.info(f"📊 Customer segments found:")
+            if 'customer_segment' in df.columns:
+                segment_counts = df['customer_segment'].value_counts()
+                for segment, count in segment_counts.items():
+                    logger.info(f"  - {segment}: {count} customers")
+            logger.info(f"📊 Total customers: {len(df)}")
+            logger.info(f"📊 Total orders range: {df['total_orders'].min()} - {df['total_orders'].max()}")
         
         # Create visualization
         fig = make_subplots(
@@ -971,25 +1087,59 @@ class AthenaAnalyzer:
         
         return fig, df
     
-    def create_churn_analysis(self, use_cache: bool = True) -> Tuple[go.Figure, pd.DataFrame]:
+    def create_churn_analysis(self, use_cache: bool = True, max_rows: int = 5000, force_refresh: bool = False) -> Tuple[go.Figure, pd.DataFrame]:
         """Create churn prediction indicators using Athena with raw data"""
-        # Use the updated query method
-        query = self._get_churn_analysis_query()
+        # Only drop materialized view when force_refresh is requested
+        if force_refresh:
+            logger.info("🔄 Force refreshing churn analysis - dropping materialized view")
+            self.drop_materialized_view("churn_analysis_view")
+        else:
+            logger.info("📋 Using existing churn analysis data - materialized view preserved")
         
-        # Clear cache for churn analysis to ensure fresh results
-        if not use_cache:
-            self.clear_cache()
+        # Check if materialized view exists and use it for consistency
+        view_name = "churn_analysis_view"
+        try:
+            check_query = f"SELECT COUNT(*) FROM {self.database}.{view_name} LIMIT 1"
+            self.execute_query(check_query, f"check_{view_name}")
+            logger.info(f"📋 Using existing materialized view {view_name} for consistency")
+            
+            # Query the materialized view for consistent results
+            query = f"SELECT * FROM {self.database}.{view_name} LIMIT {max_rows}"
+            # Clear cache if force refresh is requested, then use cache
+            if force_refresh:
+                self.clear_analysis_cache("churn_analysis")
+            df = self.execute_query(query, "churn_analysis", use_cache=True, max_rows=max_rows)
+            
+        except:
+            logger.info(f"📋 Materialized view {view_name} not available, using raw query")
+            
+            # Use the updated query method
+            query = self._get_churn_analysis_query(max_rows)
+            
+            # Debug: Print the exact query being executed
+            logger.info(f"🔍 Executing churn analysis query:")
+            logger.info(f"Query: {query}")
+            
+            # Clear cache for churn analysis to ensure fresh results
+            if not use_cache or force_refresh:
+                self.clear_analysis_cache("churn_analysis")
+            
+            # Force fresh query to get clean data
+            df = self.execute_query(query, "churn_analysis", use_cache=False, max_rows=max_rows)
         
-        # Force fresh query to get clean data
-        df = self.execute_query(query, "churn_analysis", use_cache=False, max_rows=10000)
-        
-        # Debug: Print data info
-        print(f"📊 Churn Analysis Data: {len(df)} rows")
+        # Debug: Log the data info to help identify inconsistencies
+        data_source = "materialized view" if 'churn_analysis_view' in str(query) else "raw query"
+        logger.info(f"📊 Churn Analysis Normal Data: {len(df)} rows from {data_source}")
         if len(df) > 0:
-            print(f"📈 Total Orders Range: {df['total_orders'].min()} - {df['total_orders'].max()}")
-            print(f"📅 Days Between Range: {df['avg_days_between'].min():.1f} - {df['avg_days_between'].max():.1f}")
-            print(f"📊 Sample Data:")
-            print(df.head())
+            logger.info(f"📈 Columns found: {list(df.columns)}")
+            logger.info(f"📊 Total customers: {len(df)}")
+            logger.info(f"📊 Total orders range: {df['total_orders'].min()} - {df['total_orders'].max()}")
+            logger.info(f"📊 Days between range: {df['avg_days_between'].min():.2f} - {df['avg_days_between'].max():.2f}")
+            logger.info(f"📊 Sample data:")
+            logger.info(df.head())
+        
+
+
             
             # Debug: Check if we have customers with multiple orders
             order_counts = df['total_orders'].value_counts().sort_index()
@@ -997,7 +1147,7 @@ class AthenaAnalyzer:
             print(order_counts)
             
             # Debug: Check days_since_prior data
-            print(f"📅 Days Since Prior Analysis:")
+
             print(f"  - Customers with avg_days_between > 0: {(df['avg_days_between'] > 0).sum()}")
             print(f"  - Customers with max_days_between > 0: {(df['max_days_between'] > 0).sum()}")
             print(f"  - Customers with std_days_between > 0: {(df['std_days_between'] > 0).sum()}")
@@ -1038,45 +1188,9 @@ class AthenaAnalyzer:
                 print(f"  - Days range: {customers_with_days['avg_days_between'].min():.1f} - {customers_with_days['avg_days_between'].max():.1f}")
                 print(f"  - Max days range: {customers_with_days['max_days_between'].min():.1f} - {customers_with_days['max_days_between'].max():.1f}")
         
-        # Process data to match in-memory version
+        # Process data to match in-memory version (same as fast method)
         if len(df) > 0:
-            # Clean the DataFrame by removing NaN columns and keeping only expected columns
-            expected_columns = ['user_id', 'total_orders', 'avg_days_between', 'max_days_between', 'std_days_between']
-            available_columns = [col for col in expected_columns if col in df.columns]
-            
-            if available_columns:
-                # Remove any columns that are all NaN
-                df_clean = df.copy()
-                df_clean = df_clean.dropna(axis=1, how='all')
-                
-                # Keep only the expected columns that exist
-                final_columns = [col for col in available_columns if col in df_clean.columns]
-                clean_df = df_clean[final_columns].copy()
-                
-                # Reset index to avoid duplicate index issues
-                clean_df = clean_df.reset_index(drop=True)
-                
-                # Handle NaN values like in-memory version
-                churn_indicators = clean_df.fillna(0)
-                
-                # Debug: Check the cleaned data
-                print(f"📊 Cleaned DataFrame Shape: {churn_indicators.shape}")
-                print(f"📊 Cleaned DataFrame Columns: {list(churn_indicators.columns)}")
-                print(f"📊 Sample Cleaned Data:")
-                print(churn_indicators.head(5))
-                
-                # Ensure we have all order counts represented
-                print(f"📊 Order Count Distribution:")
-                order_counts = churn_indicators['total_orders'].value_counts().sort_index()
-                print(order_counts)
-                
-                # Debug: Check days distribution
-                print(f"📅 Days Distribution Sample:")
-                days_sample = churn_indicators['avg_days_between'].value_counts().sort_index().head(10)
-                print(days_sample)
-            else:
-                print("❌ No expected columns found in churn analysis result")
-                churn_indicators = pd.DataFrame()
+            churn_indicators = df.fillna(0)
         else:
             churn_indicators = pd.DataFrame()
         
@@ -1088,25 +1202,15 @@ class AthenaAnalyzer:
                 specs=[[{"type": "histogram"}, {"type": "scatter"}]]
             )
             
-            # Days between orders - add debugging and better histogram parameters
+            # Days between orders
             days_data = churn_indicators['avg_days_between']
             
             # Filter out days = 0 for the distribution
             days_data_filtered = days_data[days_data > 0]
             
-            print(f"📊 Histogram Data Debug:")
-            print(f"  - Days data length: {len(days_data)}")
-            print(f"  - Days data range: {days_data.min():.2f} - {days_data.max():.2f}")
-            print(f"  - Days data sample: {days_data.head(10).tolist()}")
-            print(f"  - Filtered days data length (excluding 0): {len(days_data_filtered)}")
-            print(f"  - Filtered days data range: {days_data_filtered.min():.2f} - {days_data_filtered.max():.2f}")
+
             
-            fig.add_trace(go.Histogram(
-                x=days_data_filtered, 
-                name='Days Between Orders',
-                nbinsx=20,  # Set number of bins
-                opacity=0.7  # Make it more visible
-            ), row=1, col=1)
+            fig.add_trace(go.Histogram(x=days_data_filtered, name='Days Between Orders'), row=1, col=1)
             
             # Churn risk scatter - handle NaN values and add jitter for better visualization
             marker_sizes = churn_indicators['std_days_between'] * 10
@@ -1169,18 +1273,38 @@ class AthenaAnalyzer:
         
         return fig, churn_indicators
     
-    def create_churn_analysis_fast(self) -> Tuple[go.Figure, pd.DataFrame]:
+    def create_churn_analysis_fast(self, force_refresh: bool = False, max_rows: int = 5000) -> Tuple[go.Figure, pd.DataFrame]:
         """Create churn prediction indicators using materialized view for faster results"""
         view_name = "churn_analysis_view"
         
-        # Try to create materialized view if it doesn't exist
-        if not self.create_materialized_view(self._get_churn_analysis_query(), view_name):
-            logger.warning("⚠️ Failed to create materialized view, falling back to regular query")
-            return self.create_churn_analysis(use_cache=True)
+        # Only force refresh when explicitly requested
+        if force_refresh:
+            logger.info(f"🔄 Force refreshing {view_name} as requested")
+        else:
+            logger.info(f"📋 Using existing {view_name} if available")
         
-        # Query the materialized view
-        query = f"SELECT * FROM {self.database}.{view_name} LIMIT 1000"
-        df = self.execute_query(query, "churn_analysis_fast", use_cache=True)
+        # Try to create materialized view with latest query
+        if not self.create_materialized_view(self._get_churn_analysis_query(max_rows), view_name, refresh=force_refresh):
+            logger.warning("⚠️ Failed to create materialized view, falling back to regular query")
+            return self.create_churn_analysis(use_cache=True, max_rows=max_rows, force_refresh=force_refresh)
+        
+        # Clear cache if force refresh is requested to ensure fresh data
+        if force_refresh:
+            self.clear_analysis_cache("churn_analysis_fast")
+        
+        # Query the materialized view (always use cache after clearing if needed)
+        query = f"SELECT * FROM {self.database}.{view_name} LIMIT {max_rows}"
+        df = self.execute_query(query, "churn_analysis_fast", use_cache=True, max_rows=max_rows)
+        
+        # Debug: Log the data info to help identify inconsistencies
+        logger.info(f"📊 Churn Analysis Fast Data: {len(df)} rows from materialized view")
+        if len(df) > 0:
+            logger.info(f"📈 Columns found: {list(df.columns)}")
+            logger.info(f"📊 Total customers: {len(df)}")
+            logger.info(f"📊 Total orders range: {df['total_orders'].min()} - {df['total_orders'].max()}")
+            logger.info(f"📊 Days between range: {df['avg_days_between'].min():.2f} - {df['avg_days_between'].max():.2f}")
+            logger.info(f"📊 Sample data:")
+            logger.info(df.head())
         
         # Process data to match in-memory version
         if len(df) > 0:
@@ -1201,7 +1325,7 @@ class AthenaAnalyzer:
         # Filter out days = 0 for the distribution
         days_data_filtered = days_data[days_data > 0]
         
-        fig.add_trace(go.Histogram(x=days_data_filtered, name='Days Between Orders'), row=1, col=1)
+        fig.add_trace(go.Histogram(x=days_data_filtered, name='Days Between Orders Distribution'), row=1, col=1)
         
         # Churn risk scatter - handle NaN values and add jitter for better visualization
         marker_sizes = churn_indicators['std_days_between'] * 10
@@ -1413,6 +1537,27 @@ class AthenaAnalyzer:
             
         except Exception as e:
             print(f"❌ Failed to clear cache: {e}")
+    
+    def clear_analysis_cache(self, analysis_name: str):
+        """Clear cache for a specific analysis"""
+        try:
+            response = self.s3_client.list_objects_v2(
+                Bucket='insightflow-dev-clean-bucket',
+                Prefix=f'athena-cache/{analysis_name}'
+            )
+            cached_files = [obj['Key'] for obj in response.get('Contents', [])]
+            
+            for file_key in cached_files:
+                self.s3_client.delete_object(
+                    Bucket='insightflow-dev-clean-bucket',
+                    Key=file_key
+                )
+                logger.info(f"🗑️ Deleted cache: {file_key}")
+            
+            logger.info(f"✅ Cleared {len(cached_files)} cached results for {analysis_name}")
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to clear cache for {analysis_name}: {e}")
 
     def diagnose_data_types(self):
         """Diagnose the data types of key columns"""
@@ -1457,9 +1602,9 @@ class AthenaAnalyzer:
                 f"""
                 SELECT 
                     'after_clean_orders' as table_name,
-                    'days_since_prior' as column_name,
-                    typeof(days_since_prior) as data_type,
-                    days_since_prior as sample_value
+                    'days_since_prior_order' as column_name,
+                    typeof(days_since_prior_order) as data_type,
+                    days_since_prior_order as sample_value
                 FROM {self.database}.after_clean_orders 
                 LIMIT 1
                 """
@@ -1503,6 +1648,156 @@ class AthenaAnalyzer:
         else:
             logger.warning("No popular products found or query failed.")
 
+    def drop_materialized_view(self, view_name: str) -> bool:
+        """Drop a materialized view if it exists and clean up S3 directories"""
+        try:
+            # First, drop the table from Athena
+            drop_query = f"DROP TABLE IF EXISTS {self.database}.{view_name}"
+            self.execute_query(drop_query, f"drop_{view_name}", use_cache=False)
+            logger.info(f"🗑️ Dropped materialized view: {view_name}")
+            
+            # Then, clean up the S3 directory to prevent HIVE_PATH_ALREADY_EXISTS errors
+            try:
+                s3_prefix = f"materialized-views/{view_name}/"
+                logger.info(f"🧹 Cleaning up S3 directory: s3://insightflow-dev-clean-bucket/{s3_prefix}")
+                
+                # List and delete all objects in the S3 directory
+                response = self.s3_client.list_objects_v2(
+                    Bucket='insightflow-dev-clean-bucket',
+                    Prefix=s3_prefix
+                )
+                
+                if 'Contents' in response:
+                    objects_to_delete = [{'Key': obj['Key']} for obj in response['Contents']]
+                    if objects_to_delete:
+                        self.s3_client.delete_objects(
+                            Bucket='insightflow-dev-clean-bucket',
+                            Delete={'Objects': objects_to_delete}
+                        )
+                        logger.info(f"🗑️ Deleted {len(objects_to_delete)} objects from S3 directory")
+                    else:
+                        logger.info(f"📁 S3 directory {s3_prefix} is already empty")
+                else:
+                    logger.info(f"📁 S3 directory {s3_prefix} does not exist")
+                    
+            except Exception as s3_error:
+                logger.warning(f"⚠️ Could not clean up S3 directory for {view_name}: {s3_error}")
+                # Continue even if S3 cleanup fails
+            
+            return True
+            
+        except Exception as e:
+            logger.warning(f"⚠️ Could not drop materialized view {view_name}: {e}")
+            return False
+
+    def get_materialized_view_status(self) -> Dict[str, str]:
+        """Get the status of all materialized views"""
+        try:
+            view_status = {}
+            views_to_check = [
+                "product_affinity_view", 
+                "customer_journey_view", 
+                "lifetime_value_view", 
+                "churn_analysis_view"
+            ]
+            
+            for view_name in views_to_check:
+                try:
+                    check_query = f"SELECT COUNT(*) FROM {self.database}.{view_name} LIMIT 1"
+                    self.execute_query(check_query, f"status_check_{view_name}", use_cache=False)
+                    view_status[view_name] = "✅ Available"
+                except:
+                    view_status[view_name] = "❌ Not Found"
+            
+            return view_status
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to check materialized view status: {e}")
+            return {}
+
+    def cleanup_all_materialized_view_s3_directories(self) -> bool:
+        """Clean up all S3 directories for materialized views to prevent HIVE_PATH_ALREADY_EXISTS errors"""
+        try:
+            logger.info("🧹 Cleaning up all materialized view S3 directories...")
+            
+            views_to_cleanup = [
+                "product_affinity_view",
+                "customer_journey_view", 
+                "lifetime_value_view",
+                "churn_analysis_view"
+            ]
+            
+            success_count = 0
+            for view_name in views_to_cleanup:
+                try:
+                    s3_prefix = f"materialized-views/{view_name}/"
+                    logger.info(f"🧹 Cleaning up S3 directory: s3://insightflow-dev-clean-bucket/{s3_prefix}")
+                    
+                    # List and delete all objects in the S3 directory
+                    response = self.s3_client.list_objects_v2(
+                        Bucket='insightflow-dev-clean-bucket',
+                        Prefix=s3_prefix
+                    )
+                    
+                    if 'Contents' in response:
+                        objects_to_delete = [{'Key': obj['Key']} for obj in response['Contents']]
+                        if objects_to_delete:
+                            self.s3_client.delete_objects(
+                                Bucket='insightflow-dev-clean-bucket',
+                                Delete={'Objects': objects_to_delete}
+                            )
+                            logger.info(f"🗑️ Deleted {len(objects_to_delete)} objects from {s3_prefix}")
+                            success_count += 1
+                        else:
+                            logger.info(f"📁 S3 directory {s3_prefix} is already empty")
+                            success_count += 1
+                    else:
+                        logger.info(f"📁 S3 directory {s3_prefix} does not exist")
+                        success_count += 1
+                        
+                except Exception as s3_error:
+                    logger.error(f"❌ Error cleaning up S3 directory for {view_name}: {s3_error}")
+            
+            logger.info(f"🧹 S3 cleanup complete: {success_count}/{len(views_to_cleanup)} successful")
+            return success_count == len(views_to_cleanup)
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to cleanup S3 directories: {e}")
+            return False
+
+    def refresh_all_materialized_views(self, max_rows: int = 5000) -> bool:
+        """Refresh all materialized views to ensure they use the latest corrected queries"""
+        try:
+            logger.info("🔄 Refreshing all materialized views to ensure consistency...")
+            
+            # First, clean up all S3 directories to prevent HIVE_PATH_ALREADY_EXISTS errors
+            logger.info("🧹 Cleaning up S3 directories before refresh...")
+            self.cleanup_all_materialized_view_s3_directories()
+            
+            views_to_refresh = [
+                "product_affinity_view",
+                "customer_journey_view", 
+                "lifetime_value_view",
+                "churn_analysis_view"
+            ]
+            
+            success_count = 0
+            for view_name in views_to_refresh:
+                try:
+                    if self.refresh_materialized_view(view_name, max_rows=max_rows):
+                        success_count += 1
+                        logger.info(f"✅ Successfully refreshed {view_name}")
+                    else:
+                        logger.warning(f"⚠️ Failed to refresh {view_name}")
+                except Exception as e:
+                    logger.error(f"❌ Error refreshing {view_name}: {e}")
+            
+            logger.info(f"🔄 Materialized view refresh complete: {success_count}/{len(views_to_refresh)} successful")
+            return success_count == len(views_to_refresh)
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to refresh materialized views: {e}")
+            return False
 
 def test_athena_analysis():
     """
@@ -1606,7 +1901,7 @@ def test_athena_analysis():
             print("\n⚠️ Churn Risk Statistics:")
             print(f"Average days between orders: {df4['avg_days_between'].mean():.1f} days")
             print(f"Max days between orders: {df4['max_days_between'].max():.1f} days")
-            print(f"Customers with high churn risk (>30 days avg): {(df4['avg_days_between'] > 30).sum()}")
+            print(f"Customers with high churn risk (>14 days avg): {(df4['avg_days_between'] > 14).sum()}")
             
         except Exception as e:
             print(f"❌ Churn Analysis failed: {e}")

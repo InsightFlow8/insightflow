@@ -196,10 +196,11 @@ def test_credentials_simple():
 def main():
     """Main Streamlit dashboard application - Analysis Home Page"""
     
-    st.title("🛒 Customer Behavior Analysis Dashboard")
-    st.markdown("### Advanced Analytics with Optimized Performance")
+    # Main dashboard header
+    st.title("📊 E-commerce Customer Behavior Analysis")
+    st.markdown("Comprehensive analysis of customer behavior, product affinity, and business insights using AWS Athena")
     
-    # Sidebar
+    # AWS Connection Status
     st.sidebar.title("🔍 Analysis Dashboard")
     
     # Add test connection button
@@ -338,6 +339,36 @@ def main():
     # Render sidebar and get filters
     st.sidebar.header("📊 Filters")
     
+    # Materialized View Control
+    st.sidebar.markdown("---")
+    st.sidebar.subheader("🔄 Materialized Views")
+    force_refresh_materialized_views = st.sidebar.checkbox(
+        "Force refresh materialized views",
+        value=False,
+        help="Check this to drop and recreate materialized views. Uncheck to use existing views for better performance."
+    )
+    
+    if force_refresh_materialized_views:
+        st.sidebar.warning("⚠️ Materialized views will be refreshed (slower but ensures latest data)")
+    else:
+        st.sidebar.info("📋 Using existing materialized views (faster performance)")
+    
+    # Materialized View Status
+    st.sidebar.markdown("---")
+    st.sidebar.subheader("📊 View Status")
+    
+    # Check if materialized views exist
+    try:
+        view_status = athena_analyzer.get_materialized_view_status()
+        
+        for view_name, status in view_status.items():
+            st.sidebar.text(f"{view_name.replace('_', ' ').title()}: {status}")
+            
+    except Exception as e:
+        st.sidebar.warning("⚠️ Could not check view status")
+    
+    st.sidebar.markdown("---")
+    
     # Get departments from Athena
     try:
         departments_df = athena_analyzer.get_departments(use_cache=True)
@@ -382,20 +413,20 @@ def main():
         render_overview_tab(athena_analyzer, selected_departments)
     
     with tab2:
-        render_product_affinity_tab(athena_analyzer, selected_departments)
+        render_product_affinity_tab(athena_analyzer, selected_departments, force_refresh_materialized_views)
     
     with tab3:
-        render_customer_journey_tab(athena_analyzer)
+        render_customer_journey_tab(athena_analyzer, force_refresh_materialized_views)
     
     with tab4:
-        render_lifetime_value_tab(athena_analyzer)
+        render_lifetime_value_tab(athena_analyzer, force_refresh_materialized_views)
     
     with tab5:
-        render_churn_analysis_tab(athena_analyzer)
+        render_churn_analysis_tab(athena_analyzer, force_refresh_materialized_views)
     
     # Footer
     st.markdown("---")
     st.markdown("📊 **Dashboard created with Streamlit & Plotly** | Data: E-commerce Customer Behavior")
 
 if __name__ == "__main__":
-    main() 
+    main()

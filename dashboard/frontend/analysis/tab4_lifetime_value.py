@@ -5,7 +5,7 @@ import os
 # Add the backend directory to the path
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'backend'))
 
-def render_lifetime_value_tab(athena_analyzer):
+def render_lifetime_value_tab(athena_analyzer, force_refresh: bool = False):
     """Render the customer lifetime value analysis tab using Athena"""
     
     st.header("Customer Lifetime Value Analysis")
@@ -18,15 +18,15 @@ def render_lifetime_value_tab(athena_analyzer):
         use_fast_analysis = st.checkbox("Use fast analysis (materialized view)", value=True, key="lifetime_value_fast")
     
     with col2:
-        max_rows = st.number_input("Maximum rows to return", 1000, 50000, 10000, key="lifetime_value_max_rows")
+        max_rows = st.number_input("Maximum rows to return", 1000, 50000, 5000, key="lifetime_value_max_rows")
     
     # Run the analysis
     with st.spinner("Running lifetime value analysis..."):
         try:
             if use_fast_analysis:
-                fig, df = athena_analyzer.create_lifetime_value_analysis_fast()
+                fig, df = athena_analyzer.create_lifetime_value_analysis_fast(force_refresh=force_refresh, max_rows=max_rows)
             else:
-                fig, df = athena_analyzer.create_lifetime_value_analysis(use_cache=True)
+                fig, df = athena_analyzer.create_lifetime_value_analysis(use_cache=True, max_rows=max_rows)
             
             # Display the visualization
             st.plotly_chart(fig, use_container_width=True)

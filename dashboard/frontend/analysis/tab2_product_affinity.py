@@ -6,7 +6,7 @@ import pandas as pd
 # Add the backend directory to the path
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'backend'))
 
-def render_product_affinity_tab(athena_analyzer, selected_departments=None):
+def render_product_affinity_tab(athena_analyzer, selected_departments=None, force_refresh: bool = False):
     """Render the product affinity analysis tab using Athena"""
     
     st.header("Product Affinity Analysis")
@@ -24,7 +24,7 @@ def render_product_affinity_tab(athena_analyzer, selected_departments=None):
         use_fast_analysis = st.checkbox("Use fast analysis (materialized view)", value=True, key="product_affinity_fast")
     
     with col2:
-        max_rows = st.number_input("Maximum rows to return", 1000, 50000, 10000, key="product_affinity_max_rows")
+        max_rows = st.number_input("Maximum rows to return", 1000, 50000, 5000, key="product_affinity_max_rows")
     
     # Run the analysis
     with st.spinner("Running product affinity analysis..."):
@@ -33,7 +33,8 @@ def render_product_affinity_tab(athena_analyzer, selected_departments=None):
                 fig, df = athena_analyzer.create_product_affinity_analysis_fast(
                     top_products=top_products, 
                     max_rows=max_rows,
-                    departments=selected_departments
+                    departments=selected_departments,
+                    force_refresh=force_refresh
                 )
             else:
                 fig, df = athena_analyzer.create_product_affinity_analysis(
