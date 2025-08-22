@@ -5,6 +5,7 @@
 
 This repository provides a modular, production-grade data ingestion pipeline for AWS, focusing on the batch and streaming ingestion of data from Snowflake and other sources into S3, and further synchronization with PostgreSQL RDS. The pipeline is fully managed via Terraform (IaC) and supports automated deployment through GitHub Actions.
 
+imba_architecture.drawio.png
 ![Data Pipeline Diagram](data_ingestion_20250802.png)
 
 ### Directory Structure
@@ -29,11 +30,22 @@ This repository provides a modular, production-grade data ingestion pipeline for
 │       │       └── streaming_data_publisher.py
 │       ├── vpc/
 │       ├── ec2/
-│       ├── rds_postgresql/
 │       ├── glue_raw/
 │       ├── data_sync/
 │       │   ├── raw/
 │       │   └── ...
+│       ├── ml/         # Machine Learning Pipeline
+│       │   ├── README_EN.md
+│       │   ├── mice_imputer.py
+│       │   ├── als_train.py
+│       │   ├── user_seg_rfm_kmeans.py
+│       │   └── ...
+│
+├── dashboard/          # Customer Behavior Analysis Dashboard
+│   ├── frontend/       # Streamlit frontend
+│   ├── backend/        # FastAPI backend with AI chat
+│   ├── README.md       # Dashboard documentation
+│   └── docker-compose.yml
 │
 ├── terraform/          # Infrastructure as Code (Terraform)
 │   ├── assets/         # Lambda zip files and other assets
@@ -45,7 +57,6 @@ This repository provides a modular, production-grade data ingestion pipeline for
 │       │   └── streaming/
 │       ├── vpc/
 │       ├── ec2/
-│       ├── rds_postgresql/
 │       ├── glue_raw/
 │       ├── data_sync/
 │       │   ├── raw/
@@ -58,6 +69,7 @@ This repository provides a modular, production-grade data ingestion pipeline for
 **Key Folders:**
 - `.github/workflows`: CI/CD automation for each module
 - `functions/modules`: Python scripts and Lambda code for ingestion, sync, and utility
+- `dashboard/`: Customer behavior analysis dashboard with AI-powered recommendations
 - `terraform`: All infrastructure code and deployment assets
 
 ---
@@ -88,27 +100,20 @@ Streaming ingestion module (future extension):
 - **Scripts:** `streaming_data_publisher.py`, `streaming_data_transformer.py`
 
 ### 5. vpc
-- Creates a secure VPC with public and private subnets, NAT gateway, and security groups for all necessary pipeline components (EC2 bastion machine, RDS PostgreSQL, data_sync_raw Lambda function).
-- Endpoints are created for the internal connection between AWS services (e.g. PostgreSQL <-> Lambda function)
+- Creates a secure VPC with public and private subnets, NAT gateway, and security groups for all necessary pipeline components (EC2 bastion machine, data_sync_raw Lambda function).
+- Endpoints are created for the internal connection between AWS services.
 
-### 6. rds_postgresql
-- Provisions a PostgreSQL RDS instance in a private subnet, with IAM authentication and encrypted storage.
-- The database is considered as a data backup for the raw-data bucket, and maybe for the curate-data in the following stage.
-- The necessary tables for data sync are created by `create_tables.sql` when initializing the EC2 bastion machine. 
-- Considering the limited Lambda function capacity in data_sync, no key constraints has been set on the current tables. 
-
-### 7. ec2
-- Deploys a bastion host in the public subnet for secure SSH access RDS and debugging.
+### 6. ec2
+- Deploys a bastion host in the public subnet for secure SSH access and debugging.
 - EC2 instance creates the tables needed for data sync by `bastion-init.sh` & `create_tables.sql` when starting up.
 
-### 8. glue_crawler_raw - currently disabled
+### 7. glue_crawler_raw - currently disabled
 - Configures AWS Glue Crawler to scan S3 raw data and update Glue Data Catalog tables for downstream ETL & analytics.
 - For the first time of crawling, SET `recrawl_behavior = "CRAWL_EVERYTHING"`；for the later crawling, SET `recrawl_behavior = "CRAWL_NEW_FOLDERS_ONLY"` for cost-efficiency (`terraform.tfvars` & `deploy_batch_ingestion.yml`).
 - A placeholder.txt is created in the pipeline deployment to aviod data source errors in the glue_crawler_raw deployment. These .txt files would NOT be included in glue crawling.
 - **Scheduler:** Glue crawler has its own scheduler. Currently it is set as `"cron(0 15 30 * ? *)"` , which means UTC time 15:00  on every 30th day of the month (i.e. Sydney time 1:00 （winter time）of every 31th of the month). The rule can be adjusted per needs.
 
-
-### 9. data_sync_raw - currently disabled
+### 8. data_sync_raw - currently disabled
 - Synchronizes data between S3 raw zone and PostgreSQL RDS using Lambda:
 - **Functionality:** 
    1) Full sync: use the default `start_ts` and `end_ts`
@@ -117,11 +122,45 @@ Streaming ingestion module (future extension):
 - **Limitation:** Due to the Lamdba capacity (max runtime: 15 minutes) and the data transformation rate of RDS Postgresql, the large tables `order_products_prior` CANNOT be sync by the current Lambda function. Alternative methods would be needed to solve this problem (e.g. DMS service)
 - **Scheduler:** EventBridge `lambda-s3-to-rds-schedule` has been set as the scheduler to trigger the data_sync_raw Lambda function regularly. Currently it is set as `"cron(0 16 30 * ? *)"` , which means UTC time 16:00  on every 30th day of the month (i.e. Sydney time 2:00 （winter time）of every 31th of the month). The rule can be adjusted per needs.
 
-### 10. ETL Modules
+### 9. ETL Modules
 - **data_clean**: Glue ETL job for data cleaning and preprocessing
 - **data_transformation**: Glue ETL job for data transformation and feature engineering. For the product and user-product interactive features, two datasets are provided: 1) only the "PRIOR" datase, and 2) the "PRIOR" + "TRAIN" dataset
 - **glue_crawler_transformation**: Crawlers for transformed data cataloging
 - **glue_tables_etl**: Glue tables for ETL results
+
+### 10. Machine Learning Pipeline (ML)
+**End-to-End ML Pipeline: MICE → ALS → RFM Segmentation**
+
+The ML module provides a comprehensive machine learning pipeline for recommendation systems and customer segmentation:
+
+#### **Core Components:**
+- **MICE Imputation**: Missing data imputation for order/line fields
+- **ALS Training**: Alternating Least Squares collaborative filtering for recommendations
+- **RFM Segmentation**: Recency, Frequency, Monetary customer segmentation using KMeans clustering
+- **Evaluation & Metrics**: Precision@K, Recall@K, MAP@K, NDCG@K, and coverage analysis
+
+#### **Key Scripts:**
+- `mice_imputer.py` - MICE-based imputations on key order/line fields
+- `als_train.py` - ALS model training and evaluation
+- `user_seg_rfm_kmeans.py` - Spark app for RFM/KMeans customer segmentation
+- `rfm_analysis_and_export.py` - RFM visualization and sample export
+
+#### **Outputs:**
+- **User Segmentation**: `user_seg.parquet` with R/F/M scores and cluster assignments
+- **Segment Popularity**: `segment_popularity.parquet` with Top-N recommendations per segment
+- **Evaluation Metrics**: Comprehensive evaluation results and charts
+- **Export Data**: High-value user cohorts and per-segment recommendations
+
+#### **S3 Layout:**
+```
+s3://<curated_bucket>/recsys/
+├─ user_seg/                    # User-level R/F/M + segment
+├─ segment_popularity/          # Segment × item popularity (Top-N)
+├─ eval/                        # ALS evaluation metrics
+├─ eval_charts/                 # Published evaluation charts
+├─ exports/                     # Sample exports and cohorts
+└─ debug/                       # Debug logs and diagnostics
+```
 
 ### 11. step_functions 
 **Complete Data Pipeline Orchestration with EventBridge Automation:**
@@ -140,13 +179,46 @@ Streaming ingestion module (future extension):
 - **Makefile Integration:** Simple execution commands
 ![Step Functions Graph](stepfunctions_graph.png)
 
-### 12. main entry (terraform/dev)
+### 12. Dashboard
+**Customer Behavior Analysis Dashboard with AI-Powered Recommendations**
+
+A comprehensive dashboard built with Streamlit frontend and FastAPI backend, featuring:
+
+#### **Core Features:**
+- **Interactive Analytics**: Customer segmentation, product affinity, lifetime value, and churn analysis
+- **AI Chat Interface**: OpenAI-powered chat for natural language queries
+- **Product Recommendations**: Dual recommendation system (ALS + cluster-based)
+- **Real-time Data**: AWS Athena integration for live data analysis
+- **Vector Search**: AWS S3Vectors for product similarity and recommendations
+
+#### **Architecture:**
+- **Frontend**: Streamlit (Port 8501) - Interactive dashboard and visualizations
+- **Backend**: FastAPI (Port 8000) - AI chat, ML models, and data analysis
+- **Storage**: AWS S3Vectors for product embeddings and similarity search
+- **Analytics**: AWS Athena for SQL-based data analysis and insights
+
+#### **Key Components:**
+- **Customer Segmentation**: RFM-based analysis with KMeans clustering
+- **Product Affinity**: Purchase pattern analysis and product relationships
+- **Lifetime Value**: Customer value assessment and segmentation
+- **Churn Analysis**: Risk indicators and customer retention insights
+- **Recommendation Engine**: Personalized and cluster-based product suggestions
+
+#### **Deployment:**
+- **Local Development**: Docker Compose with volume mounts
+- **EC2 Production**: Automated deployment with bastion initialization
+- **Scalability**: Async backend implementation for concurrent requests
+- **Performance**: Materialized views and caching for fast analysis
+
+For detailed dashboard documentation, see [Dashboard README](dashboard/README.md).
+
+### 13. main entry (terraform/dev)
 - Centralized entry point for deploying all modules. Contains main Terraform configuration and variable definitions.
 
 ---
 
 ## Deployment 
- ## tg
+
 ### Handling Large Data Files (Git LFS)
 
 This project contains large data files (e.g., in the `imba_data/` directory) that exceed GitHub's 100MB file size limit. We use [Git Large File Storage (LFS)](https://git-lfs.github.com/) to manage these files.
@@ -217,7 +289,7 @@ make execute-pipeline
 3. Environment variables and secrets are managed via GitHub repository settings.
 4. Monitor deployment status in the Actions tab.
 5. Only the change in the main branch will trigger the auto CI/CD, you can alter the trigger methods in  `.yml` or trigger the deployment manually.
-6. It will take a few time to deploy all current resources. Sometimes it will report error due to the timeout of AWS credentials. Ju
+6. It will take a few time to deploy all current resources. Sometimes it will report error due to the timeout of AWS credentials. Just retry the deployment and the error will be resolved in most cases.
 
 ### Notes in deployment
 1. To deploy the pipeline from another account, you need to set YOUR OWN AWS account's ACCESS KEY and SECRET ACCESS KEY as the environment variables.
@@ -239,13 +311,11 @@ make execute-pipeline
       1. module."s3_buckets" -> module "glue_tables"
       2. module."s3_buckets" -> module "glue_tables_etl"
       3. module."s3_buckets" -> module "batch_ingestion"
-      4. module."vpc", module."rds_postgresql" -> module "ec2"
-      5. module."vpc" -> module."rds_postgresql"
-      6. module."s3_buckets" -> module "etl_data_clean"
-      7. module."s3_buckets", module "etl_data_clean" -> module "etl_data_transformation"
-      8. module."s3_buckets", module "etl_data_transformation" -> module "glue_crawler_transformation"
-      9. module."batch_ingestion", module."etl_data_transformation", module."etl_data_clean", module."glue_crawler_transformation" -> module "step_functions"
-
+      4. module."vpc" -> module "ec2"
+      5. module."s3_buckets" -> module "etl_data_clean"
+      6. module."s3_buckets", module "etl_data_clean" -> module "etl_data_transformation"
+      7. module."s3_buckets", module "etl_data_transformation" -> module "glue_crawler_transformation"
+      8. module."batch_ingestion", module."etl_data_transformation", module."etl_data_clean", module."glue_crawler_transformation" -> module "step_functions"
 
 ### Further exploration & improvement
 1. The large dataset (e.g. `order_products_prior`) CANNOT be synced by the current Lambda function. Alternative solutions might be explored (e.g. `AWS DMS`) in the later stages.
