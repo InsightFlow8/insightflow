@@ -5,7 +5,7 @@ import os
 # Add the backend directory to the path
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'backend'))
 
-def render_churn_analysis_tab(athena_analyzer):
+def render_churn_analysis_tab(athena_analyzer, force_refresh: bool = False):
     """Render the customer churn analysis tab using Athena"""
     
     st.header("Customer Churn Analysis")
@@ -18,15 +18,15 @@ def render_churn_analysis_tab(athena_analyzer):
         use_fast_analysis = st.checkbox("Use fast analysis (materialized view)", value=True, key="churn_analysis_fast")
     
     with col2:
-        max_rows = st.number_input("Maximum rows to return", 1000, 50000, 10000, key="churn_analysis_max_rows")
+        max_rows = st.number_input("Maximum rows to return", 1000, 50000, 5000, key="churn_analysis_max_rows")
     
     # Run the analysis
     with st.spinner("Running churn analysis..."):
         try:
             if use_fast_analysis:
-                fig, df = athena_analyzer.create_churn_analysis_fast()
+                fig, df = athena_analyzer.create_churn_analysis_fast(force_refresh=force_refresh, max_rows=max_rows)
             else:
-                fig, df = athena_analyzer.create_churn_analysis(use_cache=True)
+                fig, df = athena_analyzer.create_churn_analysis(use_cache=True, max_rows=max_rows, force_refresh=force_refresh)
             
             # Display the visualization
             st.plotly_chart(fig, use_container_width=True)
@@ -34,14 +34,14 @@ def render_churn_analysis_tab(athena_analyzer):
             # Show churn risk summary if available
             if len(df) > 0:
                 st.subheader("Churn Risk Summary")
-                col1, col2, col3 = st.columns(3)
+                col1, col2, col3, col4 = st.columns(4)
                 
                 with col1:
-                    if 'max_days_between' in df.columns:
-                        high_risk = len(df[df['max_days_between'] > 30])
-                        st.metric("High Churn Risk (>30 days)", high_risk)
+                    if 'avg_days_between' in df.columns:
+                        high_risk_avg = len(df[df['avg_days_between'] > 14])
+                        st.metric("High Churn Risk (>14 days avg)", high_risk_avg)
                     else:
-                        st.metric("High Churn Risk", "N/A")
+                        st.metric("High Churn Risk (>14 days avg)", "N/A")
                 
                 with col2:
                     if 'avg_days_between' in df.columns:
@@ -51,6 +51,13 @@ def render_churn_analysis_tab(athena_analyzer):
                         st.metric("Average Days Between Orders", "N/A")
                 
                 with col3:
+                    if 'max_days_between' in df.columns:
+                        high_risk_max = len(df[df['max_days_between'] > 30])
+                        st.metric("High Churn Risk (>30 days max)", high_risk_max)
+                    else:
+                        st.metric("High Churn Risk (>30 days max)", "N/A")
+                
+                with col4:
                     if 'total_orders' in df.columns:
                         avg_orders = df['total_orders'].mean()
                         st.metric("Average Orders per Customer", f"{avg_orders:.1f}")
@@ -58,13 +65,22 @@ def render_churn_analysis_tab(athena_analyzer):
                         st.metric("Average Orders per Customer", "N/A")
                 
                 # Show high-risk customers
-                if 'max_days_between' in df.columns:
-                    high_risk_df = df[df['max_days_between'] > 30]
-                    if len(high_risk_df) > 0:
-                        st.subheader("High-Risk Customers (max days between orders > 30)")
-                        st.dataframe(high_risk_df.head(10))
+                if 'avg_days_between' in df.columns and 'max_days_between' in df.columns:
+                    # High risk by average pattern
+                    high_risk_avg_df = df[df['avg_days_between'] > 14]
+                    if len(high_risk_avg_df) > 0:
+                        st.subheader("High-Risk Customers (>14 days average pattern)")
+                        st.dataframe(high_risk_avg_df.head(10))
                     else:
-                        st.info("No high-risk customers found.")
+                        st.info("No high-risk customers found (>14 days average).")
+                    
+                    # High risk by maximum wait time
+                    high_risk_max_df = df[df['max_days_between'] > 30]
+                    if len(high_risk_max_df) > 0:
+                        st.subheader("High-Risk Customers (>30 days maximum wait)")
+                        st.dataframe(high_risk_max_df.head(10))
+                    else:
+                        st.info("No high-risk customers found (>30 days maximum).")
                 else:
                     st.info("Churn risk data not available.")
             else:
@@ -79,8 +95,11 @@ def render_churn_analysis_tab(athena_analyzer):
         st.write("""
         **Customer Churn Analysis** identifies customers at risk of churning.
         
-        - **High Risk**: Customers with >30 days between orders
+        - **High Risk (>14 days avg)**: Customers with bi-weekly+ ordering patterns
+        - **High Risk (>30 days max)**: Customers who have waited 30+ days at least once
         - **Average Days**: Typical time between customer orders
         - **Order Frequency**: How often customers place orders
-        - **Data Source**: Raw order data from Athena
+        - **Data Source**: Materialized view (recommended) or raw order data from Athena
+        
+        **💡 Tip**: Both methods now use the same underlying data for consistent results.
         """) 

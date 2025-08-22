@@ -7,6 +7,7 @@ from langchain.tools import Tool, StructuredTool
 from ml_model import get_similar_users, get_user_product_score, get_user_product_scores_batch, get_popular_products
 from product_lookup import get_product_by_id, search_products
 from base_tools import UserInfoInput, UserProductProbabilityInput, UserProductProbability, UserProductProbabilityList
+from typing import List
 
 logger = logging.getLogger(__name__)
 
@@ -248,7 +249,7 @@ async def get_user_product_probability_structured_async(user_id: str = None, pro
         return format_probability_results_markdown(results)
 
 async def get_similar_users_tool_async(user_id: str, count: str = "5") -> str:
-    """Get similar users to the given user_id, formatted for markdown output (async version)"""
+    """Get similar users from the same customer segment/cluster as the given user_id (async version)"""
     try:
         # Clean and parse user_id and count robustly
         if isinstance(user_id, str):
@@ -276,18 +277,102 @@ async def get_similar_users_tool_async(user_id: str, count: str = "5") -> str:
         except Exception:
             top_n = 5
 
+        # Get user segmentation analyzer
+        from base_tools import get_cached_item
+        analyzer = await get_cached_item('user_seg_analyzer')
+        
+        if analyzer is None:
+            return "Error: User segmentation analyzer not available. Please try again later."
+        
         # Run the blocking operation in a thread pool
         loop = asyncio.get_event_loop()
-        similar_users = await loop.run_in_executor(None, get_similar_users, user_id_int, top_n)
         
-        if not similar_users:
-            return f"No similar users found for user {user_id_int}."
-        result = f"**Top {top_n} users similar to user {user_id_int}:**\n\n"
-        for i, sim_user in enumerate(similar_users, 1):
-            result += f"{i}. **User ID**: *{sim_user}*\n"
-        return result
+        try:
+            # Get the user's cluster first
+            user_cluster = await loop.run_in_executor(None, analyzer.get_user_cluster, user_id_int)
+            
+            if user_cluster is None:
+                return f"User {user_id_int} not found in the segmentation data."
+            
+            # Get users from the same cluster
+            cluster_users = await loop.run_in_executor(None, _get_users_from_cluster, analyzer, user_cluster, top_n + 1)  # +1 to exclude the original user
+            
+            # Filter out the original user
+            similar_users = [user for user in cluster_users if user != user_id_int]
+            
+            if not similar_users:
+                return f"User {user_id_int} is the only user in cluster {user_cluster}."
+            
+            # Limit to requested count
+            similar_users = similar_users[:top_n]
+            
+            # Get additional cluster information
+            cluster_summary = await loop.run_in_executor(None, analyzer.get_cluster_summary)
+            user_info = await loop.run_in_executor(None, analyzer.get_user_info, user_id_int)
+            
+            # Format the result
+            result = f"**Top {len(similar_users)} Users Similar to User {user_id_int}**\n\n"
+            result += f"**User Cluster**: *{user_cluster}*\n\n"
+            
+            if user_info is not None:
+                result += f"**Your Customer Profile**:\n"
+                result += f"- **Recency Score**: *{user_info.get('R', 'N/A'):.3f}*\n"
+                result += f"- **Frequency Score**: *{user_info.get('F', 'N/A'):.3f}*\n"
+                result += f"- **Monetary Score**: *{user_info.get('M', 'N/A'):.3f}*\n\n"
+            
+            result += f"**Similar Users (Same Customer Segment):**\n\n"
+            for i, sim_user in enumerate(similar_users, 1):
+                result += f"{i}. **User ID**: *{sim_user}*\n"
+            
+            # Add cluster statistics if available
+            if cluster_summary is not None and not cluster_summary.empty:
+                cluster_stats = cluster_summary[cluster_summary['segment'] == user_cluster]
+                if not cluster_stats.empty:
+                    result += f"\n**Cluster {user_cluster} Statistics**:\n"
+                    result += f"- **Total Users**: *{cluster_stats.iloc[0].get('user_id_count', 'N/A')}*\n"
+                    result += f"- **Avg Recency**: *{cluster_stats.iloc[0].get('R_mean', 'N/A'):.3f}*\n"
+                    result += f"- **Avg Frequency**: *{cluster_stats.iloc[0].get('F_mean', 'N/A'):.3f}*\n"
+                    result += f"- **Avg Monetary**: *{cluster_stats.iloc[0].get('M_mean', 'N/A'):.3f}*\n"
+            
+            result += f"\n**Note**: These users are similar because they belong to the same customer segment (cluster {user_cluster}), "
+            result += f"meaning they have similar purchasing behavior patterns, order frequency, and spending habits."
+            
+            return result
+            
+        except Exception as e:
+            logger.error(f"Error getting similar users from cluster: {e}")
+            # Fallback to original method if segmentation fails
+            similar_users = await loop.run_in_executor(None, get_similar_users, user_id_int, top_n)
+            
+            if not similar_users:
+                return f"No similar users found for user {user_id_int}."
+            
+            result = f"**Top {top_n} users similar to user {user_id_int} (fallback method):**\n\n"
+            for i, sim_user in enumerate(similar_users, 1):
+                result += f"{i}. **User ID**: *{sim_user}*\n"
+            return result
+            
     except Exception as e:
+        logger.error(f"Error in get_similar_users_tool_async: {e}")
         return f"Error getting similar users: {str(e)}"
+
+def _get_users_from_cluster(analyzer, cluster_id: int, limit: int = 10) -> List[int]:
+    """Helper function to get users from a specific cluster"""
+    try:
+        if analyzer.user_seg_data is None:
+            return []
+        
+        # Get users from the specified cluster
+        cluster_users = analyzer.user_seg_data[
+            analyzer.user_seg_data['segment'] == cluster_id
+        ]['user_id'].tolist()
+        
+        # Return up to the limit
+        return cluster_users[:limit]
+        
+    except Exception as e:
+        logger.error(f"Error getting users from cluster {cluster_id}: {e}")
+        return []
 
 def get_user_info_tool(*args, **kwargs) -> str:
     """Get current user information"""
@@ -351,10 +436,19 @@ This tool is designed to maximize relevance for both specific product and broad 
 
 similar_users_tool = Tool(
     name="get_similar_users",
-    description="""Get similar users to the given user_id. 
+    description="""Get similar users from the same customer segment/cluster as the given user_id. 
+    
+    This tool analyzes customer segmentation data to find users with similar purchasing behavior patterns.
+    Users are considered "similar" if they belong to the same RFM cluster (Recency, Frequency, Monetary).
     
     ALWAYS use this tool when users ask for similar users, customers, or user recommendations.
     Examples: "Find users like me", "Who are similar customers?", "Show me similar users to user 123"
+    
+    The tool provides:
+    - User's customer segment/cluster information
+    - RFM profile scores (Recency, Frequency, Monetary)
+    - List of similar users from the same segment
+    - Cluster statistics and insights
     
     Pass the user ID '[USER_ID]' as the first parameter and the number of similar users as the second parameter (e.g., '7' for 7 users).""",
     func=get_similar_users_tool_async

@@ -62,6 +62,7 @@
 #
 # LOGGING:
 #   All script output is logged to /var/log/bastion-init.log
+#   sudo cat /var/log/bastion-init.log
 #
 # ERROR HANDLING:
 #   Script exits on first error with detailed logging
@@ -119,7 +120,7 @@ check_status "Git installation"
 # Clone the project from the specific branch
 # NOTE: This creates the insightflow folder in the current working directory (/root/)
 log_message "📥 Cloning project from GitHub..."
-git clone -b main https://github.com/InsightFlow8/insightflow.git
+git clone -b feature/segment_recommend https://github.com/InsightFlow8/insightflow.git
 check_status "Project cloning"
 
 cd insightflow/dashboard
