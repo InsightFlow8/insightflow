@@ -3,9 +3,9 @@
 
 ## Overview
 
-This repository provides a modular, production-grade data ingestion pipeline for AWS, focusing on the batch and streaming ingestion of data from Snowflake and other sources into S3, and further synchronization with PostgreSQL RDS. The pipeline is fully managed via Terraform (IaC) and supports automated deployment through GitHub Actions.
+This repository provides a modular, production-grade data ingestion pipeline for AWS, focusing on the batch and streaming ingestion of data from Snowflake and other sources into S3. The pipeline is fully managed via Terraform (IaC) and supports automated deployment through GitHub Actions.
 
-imba_architecture.drawio.png
+![Architecture](imba_architecture.drawio.png)
 ![Data Pipeline Diagram](data_ingestion_20250802.png)
 
 ### Directory Structure
@@ -100,35 +100,22 @@ Streaming ingestion module (future extension):
 - **Scripts:** `streaming_data_publisher.py`, `streaming_data_transformer.py`
 
 ### 5. vpc
-- Creates a secure VPC with public and private subnets, NAT gateway, and security groups for all necessary pipeline components (EC2 bastion machine, data_sync_raw Lambda function).
+- Creates a secure VPC with public and private subnets, NAT gateway, and security groups for all necessary pipeline components (EC2 bastion machine).
 - Endpoints are created for the internal connection between AWS services.
 
 ### 6. ec2
 - Deploys a bastion host in the public subnet for secure SSH access and debugging.
-- EC2 instance creates the tables needed for data sync by `bastion-init.sh` & `create_tables.sql` when starting up.
+- EC2 instance is used for pipeline management and debugging purposes.
 
-### 7. glue_crawler_raw - currently disabled
-- Configures AWS Glue Crawler to scan S3 raw data and update Glue Data Catalog tables for downstream ETL & analytics.
-- For the first time of crawling, SET `recrawl_behavior = "CRAWL_EVERYTHING"`；for the later crawling, SET `recrawl_behavior = "CRAWL_NEW_FOLDERS_ONLY"` for cost-efficiency (`terraform.tfvars` & `deploy_batch_ingestion.yml`).
-- A placeholder.txt is created in the pipeline deployment to aviod data source errors in the glue_crawler_raw deployment. These .txt files would NOT be included in glue crawling.
-- **Scheduler:** Glue crawler has its own scheduler. Currently it is set as `"cron(0 15 30 * ? *)"` , which means UTC time 15:00  on every 30th day of the month (i.e. Sydney time 1:00 （winter time）of every 31th of the month). The rule can be adjusted per needs.
 
-### 8. data_sync_raw - currently disabled
-- Synchronizes data between S3 raw zone and PostgreSQL RDS using Lambda:
-- **Functionality:** 
-   1) Full sync: use the default `start_ts` and `end_ts`
-   2) Incremental sync, change the `start_ts` and `end_ts` to realize the sync of data in a specific time period
-- **Tech:** Python, boto3, psycopg2, VPC networking
-- **Limitation:** Due to the Lamdba capacity (max runtime: 15 minutes) and the data transformation rate of RDS Postgresql, the large tables `order_products_prior` CANNOT be sync by the current Lambda function. Alternative methods would be needed to solve this problem (e.g. DMS service)
-- **Scheduler:** EventBridge `lambda-s3-to-rds-schedule` has been set as the scheduler to trigger the data_sync_raw Lambda function regularly. Currently it is set as `"cron(0 16 30 * ? *)"` , which means UTC time 16:00  on every 30th day of the month (i.e. Sydney time 2:00 （winter time）of every 31th of the month). The rule can be adjusted per needs.
 
-### 9. ETL Modules
+### 7. ETL Modules
 - **data_clean**: Glue ETL job for data cleaning and preprocessing
 - **data_transformation**: Glue ETL job for data transformation and feature engineering. For the product and user-product interactive features, two datasets are provided: 1) only the "PRIOR" datase, and 2) the "PRIOR" + "TRAIN" dataset
 - **glue_crawler_transformation**: Crawlers for transformed data cataloging
 - **glue_tables_etl**: Glue tables for ETL results
 
-### 10. Machine Learning Pipeline (ML)
+### 8. Machine Learning Pipeline (ML)
 **End-to-End ML Pipeline: MICE → ALS → RFM Segmentation**
 
 The ML module provides a comprehensive machine learning pipeline for recommendation systems and customer segmentation:
@@ -162,7 +149,7 @@ s3://<curated_bucket>/recsys/
 └─ debug/                       # Debug logs and diagnostics
 ```
 
-### 11. step_functions 
+### 9. step_functions 
 **Complete Data Pipeline Orchestration with EventBridge Automation:**
 - **Orchestration:** End-to-end data pipeline execution from ingestion to cataloging
 - **Workflow:** Lambda → Glue Clean → Glue ETL → Parallel Crawlers (5 concurrent)
@@ -179,7 +166,7 @@ s3://<curated_bucket>/recsys/
 - **Makefile Integration:** Simple execution commands
 ![Step Functions Graph](stepfunctions_graph.png)
 
-### 12. Dashboard
+### 10. Dashboard
 **Customer Behavior Analysis Dashboard with AI-Powered Recommendations**
 
 A comprehensive dashboard built with Streamlit frontend and FastAPI backend, featuring:
@@ -212,7 +199,7 @@ A comprehensive dashboard built with Streamlit frontend and FastAPI backend, fea
 
 For detailed dashboard documentation, see [Dashboard README](dashboard/README.md).
 
-### 13. main entry (terraform/dev)
+### 11. main entry (terraform/dev)
 - Centralized entry point for deploying all modules. Contains main Terraform configuration and variable definitions.
 
 ---
