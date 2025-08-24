@@ -134,17 +134,17 @@ module "ec2" {
   depends_on = [module.vpc]
 }
 
-module "rds_postgresql" {
-  source = "../modules/rds_postgresql"
-  env    = "insightflow-dev"
+# module "rds_postgresql" {
+#   source = "../modules/rds_postgresql"
+#   env    = "insightflow-dev"
 
-  db_name                     = var.db_name
-  db_username                 = var.db_username
-  db_password                 = var.db_password
-  private_subnet_ids          = module.vpc.private_subnet_ids
-  postgres_security_group_ids = [module.vpc.postgres_security_group_id]
-  depends_on                  = [module.vpc]
-}
+#   db_name                     = var.db_name
+#   db_username                 = var.db_username
+#   db_password                 = var.db_password
+#   private_subnet_ids          = module.vpc.private_subnet_ids
+#   postgres_security_group_ids = [module.vpc.postgres_security_group_id]
+#   depends_on                  = [module.vpc]
+# }
 
 # =============================
 # Glue Crawler for Raw Data
