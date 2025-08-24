@@ -92,7 +92,7 @@ def recommend_for_user(user_id, N=10, normalize=True):
     else:
         return [(r['product_id'], round(r['rating'], 3)) for r in recommendations]
 
-POPULAR_PRODUCTS_CACHE = "popular_products_cache.json"
+POPULAR_PRODUCTS_CACHE = os.path.join(os.path.dirname(__file__), "popular_products_cache.json")
 
 def get_popular_products(N=10, normalize=True):
     """

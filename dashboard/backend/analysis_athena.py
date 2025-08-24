@@ -1629,10 +1629,10 @@ class AthenaAnalyzer:
         """Query top N popular products by purchase count and save as a local JSON cache file."""
         query = f'''
             SELECT p.product_id, p.product_name, a.aisle, d.department, COUNT(*) as purchase_count
-            FROM {self.database}.raw_order_products_prior op
-            JOIN {self.database}.raw_products p ON op.product_id = p.product_id
-            LEFT JOIN {self.database}.raw_aisles a ON p.aisle_id = a.aisle_id
-            LEFT JOIN {self.database}.raw_departments d ON p.department_id = d.department_id
+            FROM {self.database}.after_clean_order_products_prior op
+            JOIN {self.database}.after_clean_products p ON CAST(op.product_id AS BIGINT) = CAST(p.product_id AS BIGINT)
+            LEFT JOIN {self.database}.after_clean_aisles a ON p.aisle_id = a.aisle_id
+            LEFT JOIN {self.database}.after_clean_departments d ON p.department_id = d.department_id
             GROUP BY p.product_id, p.product_name, a.aisle, d.department
             ORDER BY purchase_count DESC
             LIMIT {top_n}

@@ -1,0 +1,37 @@
+[
+  {
+    "product_id": 24852,
+    "product_name": "Banana",
+    "aisle": "fresh fruits",
+    "department": "produce",
+    "purchase_count": 471901
+  },
+  {
+    "product_id": 13176,
+    "product_name": "Bag of Organic Bananas",
+    "aisle": "fresh fruits",
+    "department": "produce",
+    "purchase_count": 378584
+  },
+  {
+    "product_id": 21137,
+    "product_name": "Organic Strawberries",
+    "aisle": "fresh fruits",
+    "department": "produce",
+    "purchase_count": 265753
+  },
+  {
+    "product_id": 21903,
+    "product_name": "Organic Baby Spinach",
+    "aisle": "packaged vegetables fruits",
+    "department": "produce",
+    "purchase_count": 241608
+  },
+  {
+    "product_id": 47209,
+    "product_name": "Organic Hass Avocado",
+    "aisle": "fresh fruits",
+    "department": "produce",
+    "purchase_count": 213385
+  }
+]
