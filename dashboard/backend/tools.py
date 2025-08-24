@@ -61,6 +61,29 @@ def create_enhanced_tools(vectorstore, user_id=None):
     """Create enhanced tools with sync wrappers for LangChain compatibility"""
     logger.info("Creating tools with sync wrappers for LangChain compatibility")
     
+    # Ensure user segmentation analyzer is initialized
+    try:
+        from base_tools import ensure_user_seg_analyzer_sync, force_cache_refresh_sync
+        from user_segmentation_analysis import UserSegmentationAnalyzer
+        
+        # Try to get from cache first
+        analyzer = ensure_user_seg_analyzer_sync()
+        
+        if analyzer is None:
+            # If not in cache, force a refresh
+            logger.info("🔄 User segmentation analyzer not in cache, forcing refresh...")
+            force_cache_refresh_sync()
+            analyzer = ensure_user_seg_analyzer_sync()
+        
+        if analyzer:
+            logger.info("✅ User segmentation analyzer initialized for tools")
+        else:
+            logger.warning("⚠️ User segmentation analyzer not available for tools")
+            
+    except Exception as e:
+        logger.warning(f"⚠️ Could not initialize user segmentation analyzer: {e}")
+        logger.warning("Similar users functionality may not work properly")
+    
     def get_user_info_tool(*args, **kwargs) -> str:
         if user_id:
             return f"**Your User ID**: *{user_id}*\n\nYou are currently logged in as user {user_id}. I can provide personalized product recommendations based on your purchase history and preferences."
