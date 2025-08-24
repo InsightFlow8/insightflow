@@ -12,21 +12,20 @@ execute-pipeline:
 	fi && \
 	echo "📋 Starting execution..." && \
 	EXECUTION_ARN=$$(aws stepfunctions start-execution \
-		--profile insightflow \
 		--state-machine-arn "$$ARN" \
 		--name "pipeline-$$(date +%s)" \
 		--query 'executionArn' \
 		--output text) && \
 	echo "⏳ Waiting for completion..." && \
-	while [ "$$(aws stepfunctions describe-execution --profile insightflow --execution-arn "$$EXECUTION_ARN" --query 'status' --output text)" = "RUNNING" ]; do \
+	while [ "$$(aws stepfunctions describe-execution --execution-arn "$$EXECUTION_ARN" --query 'status' --output text)" = "RUNNING" ]; do \
 		echo "⏳ Running... $$(date)"; \
 		sleep 30; \
 	done && \
-	STATUS=$$(aws stepfunctions describe-execution --profile insightflow --execution-arn "$$EXECUTION_ARN" --query 'status' --output text) && \
+	STATUS=$$(aws stepfunctions describe-execution --execution-arn "$$EXECUTION_ARN" --query 'status' --output text) && \
 	if [ "$$STATUS" = "SUCCEEDED" ]; then \
 		echo "✅ Pipeline completed successfully!"; \
 	else \
 		echo "❌ Pipeline failed with status: $$STATUS" && \
-		aws stepfunctions describe-execution --profile insightflow --execution-arn "$$EXECUTION_ARN" && \
+		aws stepfunctions describe-execution --execution-arn "$$EXECUTION_ARN" && \
 		exit 1; \
 	fi
