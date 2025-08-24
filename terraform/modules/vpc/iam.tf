@@ -5,7 +5,7 @@
 
 # EC2 Bastion Host IAM Role & Policy
 resource "aws_iam_role" "bastion_ec2_role" {
-  name = "${var.env}-bastion-ec2-role"
+  name               = "${var.env}-bastion-ec2-role"
   assume_role_policy = data.aws_iam_policy_document.bastion_ec2_assume_role.json
 }
 
@@ -25,25 +25,25 @@ resource "aws_iam_role_policy_attachment" "bastion_ec2_ssm" {
 }
 
 # RDS PostgreSQL IAM Role (for enhanced monitoring, if needed)
-resource "aws_iam_role" "rds_monitoring_role" {
-  name = "${var.env}-rds-monitoring-role"
-  assume_role_policy = data.aws_iam_policy_document.rds_monitoring_assume_role.json
-}
+# resource "aws_iam_role" "rds_monitoring_role" {
+#   name = "${var.env}-rds-monitoring-role"
+#   assume_role_policy = data.aws_iam_policy_document.rds_monitoring_assume_role.json
+# }
 
-data "aws_iam_policy_document" "rds_monitoring_assume_role" {
-  statement {
-    actions = ["sts:AssumeRole"]
-    principals {
-      type        = "Service"
-      identifiers = ["monitoring.rds.amazonaws.com"]
-    }
-  }
-}
+# data "aws_iam_policy_document" "rds_monitoring_assume_role" {
+#   statement {
+#     actions = ["sts:AssumeRole"]
+#     principals {
+#       type        = "Service"
+#       identifiers = ["monitoring.rds.amazonaws.com"]
+#     }
+#   }
+# }
 
-resource "aws_iam_role_policy_attachment" "rds_monitoring_policy" {
-  role       = aws_iam_role.rds_monitoring_role.name
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonRDSEnhancedMonitoringRole"
-}
+# resource "aws_iam_role_policy_attachment" "rds_monitoring_policy" {
+#   role       = aws_iam_role.rds_monitoring_role.name
+#   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonRDSEnhancedMonitoringRole"
+# }
 
 # DMS Replication Instance IAM Role
 # resource "aws_iam_role" "dms_vpc_role" {

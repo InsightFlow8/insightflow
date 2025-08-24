@@ -278,8 +278,8 @@ async def get_similar_users_tool_async(user_id: str, count: str = "5") -> str:
             top_n = 5
 
         # Get user segmentation analyzer
-        from base_tools import get_cached_item
-        analyzer = await get_cached_item('user_seg_analyzer')
+        from base_tools import ensure_user_seg_analyzer
+        analyzer = await ensure_user_seg_analyzer()
         
         if analyzer is None:
             return "Error: User segmentation analyzer not available. Please try again later."
