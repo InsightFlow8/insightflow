@@ -11,7 +11,9 @@ def render_overview_tab(athena_analyzer, selected_departments=None):
     """Render the overview tab with data summary using Athena"""
 
     st.header("Data Overview")
+    st.caption(f"Loaded from: {__file__}")
 
+    
     st.markdown("Summary statistics and key metrics from the e-commerce dataset")
 
     # Show selected departments if any are selected
@@ -64,18 +66,14 @@ def render_overview_tab(athena_analyzer, selected_departments=None):
                     st.info(f"**Average Orders per User:** {avg_orders_per_user:.1f}")
 
 
-                # 数据
+                # Table view of the summary
                 st.subheader("Dataset Overview by Metric")
-
-                # 1) 取 Athena 汇总数据（保持你们原有的 analyzer 调用）
                 df_summary = athena_analyzer.get_data_summary(
                     use_cache=False, 
                     departments=selected_departments
                 )
-
-                # 2) 规范列名 & 增加占比（可选）
-                # 如果 df_summary 已经是 columns = ["metric", "value"]，这段能直接用；
-                # 若不是，按注释把列名对齐即可。
+                
+                
                 if "metric" in df_summary.columns and "value" in df_summary.columns:
                     table_df = (
                         df_summary.rename(columns={"metric": "Metric", "value": "Count"})
@@ -83,8 +81,7 @@ def render_overview_tab(athena_analyzer, selected_departments=None):
                                 .sort_values("Count", ascending=False)
                     )
                 else:
-                    # 如果 get_data_summary 返回的是一个 dict，比如 {"total_items": 123, ...}
-                    # 用下面这段把它转成表格
+                    
                     m = df_summary if isinstance(df_summary, dict) else df_summary.to_dict()
                     table_df = pd.DataFrame([
                         {"Metric": "Total Items",  "Count": m.get("total_items", 0)},
@@ -94,7 +91,7 @@ def render_overview_tab(athena_analyzer, selected_departments=None):
                     ])
                     table_df["Share"] = (table_df["Count"] / table_df["Count"].sum()).round(4)
 
-                # 3) 表格展示（交互）
+                
                 st.dataframe(
                     table_df,
                     use_container_width=True,
