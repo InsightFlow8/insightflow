@@ -1,5 +1,6 @@
 import streamlit as st
 import plotly.express as px
+import pandas as pd
 import sys
 import os
  
@@ -62,27 +63,44 @@ def render_overview_tab(athena_analyzer, selected_departments=None):
                     avg_orders_per_user = total_orders / total_users if total_users > 0 else 0
                     st.info(f"**Average Orders per User:** {avg_orders_per_user:.1f}")
 
-                # Create a summary pie chart
-                st.subheader("🥧 Data Summary Pie Chart")
-                summary_data = df_summary.copy()
-                summary_data = summary_data[summary_data['metric'].isin(['Total Users', 'Total Orders', 'Total Products', 'Total Items'])]
 
-                fig = px.pie(
-                    summary_data,
-                    names='metric',
-                    values='value',
-                    title="Dataset Overview by Metric",
-                    hole=0
+                # 数据
+                st.subheader("Dataset Overview by Metric")
+
+                # 1) 取 Athena 汇总数据（保持你们原有的 analyzer 调用）
+                df_summary = athena_analyzer.get_data_summary(
+                    use_cache=False, 
+                    departments=selected_departments
                 )
 
-                fig.update_traces(
-                    textinfo='percent+label',
-                    hoverinfo='label+percent+value',
-                    pull=[0.05] * len(summary_data),
-                    marker=dict(line=dict(color='#000000', width=1))
+                # 2) 规范列名 & 增加占比（可选）
+                # 如果 df_summary 已经是 columns = ["metric", "value"]，这段能直接用；
+                # 若不是，按注释把列名对齐即可。
+                if "metric" in df_summary.columns and "value" in df_summary.columns:
+                    table_df = (
+                        df_summary.rename(columns={"metric": "Metric", "value": "Count"})
+                                .assign(Share=lambda d: (d["Count"] / d["Count"].sum()).round(4))
+                                .sort_values("Count", ascending=False)
+                    )
+                else:
+                    # 如果 get_data_summary 返回的是一个 dict，比如 {"total_items": 123, ...}
+                    # 用下面这段把它转成表格
+                    m = df_summary if isinstance(df_summary, dict) else df_summary.to_dict()
+                    table_df = pd.DataFrame([
+                        {"Metric": "Total Items",  "Count": m.get("total_items", 0)},
+                        {"Metric": "Total Orders", "Count": m.get("total_orders", 0)},
+                        {"Metric": "Total Users",  "Count": m.get("total_users", 0)},
+                        {"Metric": "Total Products","Count": m.get("total_products", 0)},
+                    ])
+                    table_df["Share"] = (table_df["Count"] / table_df["Count"].sum()).round(4)
+
+                # 3) 表格展示（交互）
+                st.dataframe(
+                    table_df,
+                    use_container_width=True,
+                    hide_index=True
                 )
 
-                st.plotly_chart(fig, use_container_width=True)
 
             else:
                 st.warning("No data summary available. Please check your AWS credentials and S3 bucket access.")
