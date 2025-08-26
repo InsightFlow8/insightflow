@@ -11,7 +11,6 @@ def render_overview_tab(athena_analyzer, selected_departments=None):
     """Render the overview tab with data summary using Athena"""
 
     st.header("Data Overview")
-    st.caption(f"Loaded from: {__file__}")
 
     
     st.markdown("Summary statistics and key metrics from the e-commerce dataset")
