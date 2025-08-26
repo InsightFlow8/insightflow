@@ -351,8 +351,13 @@ class AthenaAnalyzer:
             logger.error(f"❌ Failed to refresh materialized view {view_name}: {e}")
             return False
     
-    def _get_product_affinity_query(self, top_products: int = 20, departments: list = None, max_rows: int = 5000) -> str:
-        """Get the product affinity query that matches in-memory approach with optional department filtering"""
+    def _get_product_affinity_query(self, top_products: int = 20, departments: list = None, max_rows: int = 5000, limit_pairs: Optional[int] = None) -> str:
+        """Get the product affinity query that matches in-memory approach with optional department filtering.
+
+        limit_pairs: if provided, caps the final number of product pairs returned. This
+        should typically be top_products * (top_products - 1) / 2 to ensure the heatmap
+        can be constructed with a complete N x N grid.
+        """
         
         # Build department filter
         department_filter = ""
@@ -419,7 +424,7 @@ class AthenaAnalyzer:
         JOIN {self.database}.after_clean_departments d1 ON p1.department_id = d1.department_id
         JOIN {self.database}.after_clean_departments d2 ON p2.department_id = d2.department_id
         ORDER BY pp.pair_count DESC
-        LIMIT {max_rows}
+        LIMIT {limit_pairs if limit_pairs is not None else max_rows}
         """
     
     def _get_customer_journey_query(self, max_rows: int = 5000) -> str:
@@ -576,29 +581,17 @@ class AthenaAnalyzer:
     def create_product_affinity_analysis(self, top_products: int = 20, use_cache: bool = True, max_rows: int = 5000, departments: list = None) -> Tuple[go.Figure, pd.DataFrame]:
         """Create product affinity analysis using Athena with raw data"""
         # Use the updated query method
-        query = self._get_product_affinity_query(top_products, departments, max_rows)
+        limit_pairs = int(top_products * (top_products - 1) / 2)
+        query = self._get_product_affinity_query(top_products, departments, max_rows, limit_pairs=limit_pairs)
         
         df = self.execute_query(query, "product_affinity", use_cache=use_cache, max_rows=max_rows)
         
         # Remove any remaining duplicates (just in case)
         df = df.drop_duplicates(subset=['product1_id', 'product2_id'])
         
-        # Create visualization
+        # Create visualization with enforced N x N heatmap
         if len(df) > 0:
-            # Prepare hover data - only include columns that exist
-            hover_data = ['pair_count']
-            if 'product1_department' in df.columns and 'product2_department' in df.columns:
-                hover_data.extend(['product1_department', 'product2_department'])
-            
-            fig = px.scatter(
-                df.head(50), 
-                x='product1_name', 
-                y='product2_name', 
-                size='pair_count',
-                title='Product Affinity Analysis (Raw Data)',
-                hover_data=hover_data
-            )
-            fig.update_layout(height=600, showlegend=False)
+            fig = self._build_affinity_heatmap(df, top_products, title='Product Affinity Analysis (Raw Data)')
         else:
             # Create empty figure if no data
             fig = go.Figure()
@@ -615,7 +608,8 @@ class AthenaAnalyzer:
     
     def create_product_affinity_analysis_fast(self, top_products: int = 20, max_rows: int = 5000, departments: list = None, force_refresh: bool = False) -> Tuple[go.Figure, pd.DataFrame]:
         """Create product affinity analysis using materialized view for faster results"""
-        view_name = "product_affinity_view"
+        # Parameterize view by N to keep results consistent per requested size
+        view_name = f"product_affinity_view_n{top_products}"
         
         # Only force refresh when explicitly requested
         if force_refresh:
@@ -629,7 +623,8 @@ class AthenaAnalyzer:
             return self.create_product_affinity_analysis(top_products, use_cache=True, max_rows=max_rows, departments=departments)
         
         # Try to create materialized view with latest query
-        if not self.create_materialized_view(self._get_product_affinity_query(top_products, departments, max_rows), view_name, refresh=force_refresh):
+        limit_pairs = int(top_products * (top_products - 1) / 2)
+        if not self.create_materialized_view(self._get_product_affinity_query(top_products, departments, max_rows, limit_pairs=limit_pairs), view_name, refresh=force_refresh):
             logger.warning("⚠️ Failed to create materialized view, falling back to regular query")
             return self.create_product_affinity_analysis(top_products, use_cache=True, max_rows=max_rows, departments=departments)
         
@@ -637,23 +632,67 @@ class AthenaAnalyzer:
         query = f"SELECT * FROM {self.database}.{view_name} LIMIT {max_rows}"
         df = self.execute_query(query, "product_affinity_fast", use_cache=True, max_rows=max_rows)
         
-        # Create visualization
-        # Prepare hover data - only include columns that exist
-        hover_data = ['pair_count']
-        if 'product1_department' in df.columns and 'product2_department' in df.columns:
-            hover_data.extend(['product1_department', 'product2_department'])
-        
-        fig = px.scatter(
-            df.head(50), 
-            x='product1_name', 
-            y='product2_name', 
-            size='pair_count',
-            title='Product Affinity Analysis (Materialized View)',
-            hover_data=hover_data
-        )
-        fig.update_layout(height=600, showlegend=False)
+        # Create visualization with enforced N x N heatmap
+        fig = self._build_affinity_heatmap(df, top_products, title='Product Affinity Analysis (Materialized View)')
         
         return fig, df
+
+    def _build_affinity_heatmap(self, df: pd.DataFrame, top_products: int, title: str) -> go.Figure:
+        """Create a consistent N x N heatmap from a product-pair dataframe.
+
+        Ensures axes contain exactly top_products items by selecting the most
+        frequent products across all pairs. Missing combinations are filled with 0.
+        """
+        # Determine top N products by total pair participation
+        prod_counts = {}
+        for pid_col, name_col in [("product1_id", "product1_name"), ("product2_id", "product2_name")]:
+            for pid, name in zip(df[pid_col], df[name_col]):
+                prod_counts.setdefault(int(pid), {"name": name, "count": 0})
+                prod_counts[int(pid)]["count"] += 1
+
+        # Sort by count desc, then name for stability
+        top_ids = [pid for pid, _ in sorted(prod_counts.items(), key=lambda x: (-x[1]["count"], str(x[1]["name"])))]
+        top_ids = top_ids[:top_products]
+        id_to_name = {pid: prod_counts[pid]["name"] for pid in top_ids}
+
+        # Filter to pairs within top set
+        filtered = df[df['product1_id'].astype(int).isin(top_ids) & df['product2_id'].astype(int).isin(top_ids)].copy()
+
+        # Create full matrix with zeros, ensure symmetry positions filled
+        top_names = [id_to_name[pid] for pid in top_ids]
+        matrix = pd.DataFrame(0, index=top_names, columns=top_names, dtype=int)
+        for _, row in filtered.iterrows():
+            n1 = id_to_name.get(int(row['product1_id']))
+            n2 = id_to_name.get(int(row['product2_id']))
+            if n1 is not None and n2 is not None:
+                matrix.loc[n1, n2] = int(row['pair_count'])
+                matrix.loc[n2, n1] = int(row['pair_count'])
+
+        # Mask diagonal by keeping zeros
+        fig = px.imshow(
+            matrix.values,
+            x=matrix.columns,
+            y=matrix.index,
+            color_continuous_scale='Blues',
+            labels=dict(x='Product', y='Product', color='Pair Count'),
+            title=title
+        )
+        # Force all product names to be shown on both axes
+        fig.update_xaxes(
+            tickmode='array',
+            tickvals=list(matrix.columns),
+            ticktext=list(matrix.columns),
+            tickangle=45,
+            automargin=True
+        )
+        fig.update_yaxes(
+            tickmode='array',
+            tickvals=list(matrix.index),
+            ticktext=list(matrix.index),
+            automargin=True
+        )
+        fig.update_layout(height=600, margin=dict(l=80, r=20, t=60, b=120))
+        return fig
     
     def create_customer_journey_analysis(self, use_cache: bool = True, max_rows: int = 5000) -> Tuple[go.Figure, pd.DataFrame]:
         """Create customer journey analysis using Athena with raw data"""
