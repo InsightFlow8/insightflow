@@ -422,3 +422,6 @@ Zidan Guo (Tobby)
 
 ChienHsiang Yeh
 [LinkedIn](https://www.linkedin.com/in/chienhsiang-yeh/)
+
+Yueyufei Ma(Ashley)
+[LinkedIn](https://www.linkedin.com/in/ashly-ma/)
